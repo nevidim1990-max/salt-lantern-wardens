@@ -1,0 +1,278 @@
+{
+  "theme_id": "salt_lantern_wardens",
+  "theme_name": "Смотрители Соляных Маяков",
+  "core_concept": "Соляная топь наступает на цепь маяков, и только смотритель может удержать сигнальный путь. Игрок ставит маяки вдоль приливных маршрутов, настраивает линзы и выбирает, какой участок цепи прикроет следующий прилив. Каждая фаза обороны заканчивается коротким сигнальным выбором: усилить дальний луч, открыть боковой шлюз или сэкономить смоляные гранулы на решающий участок. Прогресс идёт не бесконечным гриндом, а через ветвящиеся решения и якорные стоянки, с которых можно продолжить оборону после прорыва. Уникальность — в сочетании roguelike-выборов, контрольных микро-фаз и соляной маячной эстетики, где маршрут и свет линз важнее украшений.",
+  "theme_identity_color": {
+    "color_name": "смоляная бирюза",
+    "hue_range": [
+      160,
+      195
+    ],
+    "reason": "Соляная топь и маячные линзы держатся на холодной бирюзе окисленной меди; этот цвет окрашивает поверхность маршрута и корпуса маяков, а не только мелкий блик."
+  },
+  "market_research": {
+    "data_source": "web_search",
+    "trending_themes": [
+      "hybrid-casual",
+      "roguelike-inspired progression",
+      "meta-progression",
+      "short-session midcore",
+      "idle-mechanics"
+    ],
+    "genre_saturation": "high",
+    "underserved_gap": "Tower defense with roguelike-inspired branching choices and checkpoint-based micro-phases that eliminate grinding — on Yandex Games and CrazyGames represented only by static wave defense or repetitive grind-heavy progression.",
+    "competitor_analysis": [
+      {
+        "name": "Brainrot Tower Defence",
+        "theme": "Internet meme / brainrot culture",
+        "palette": "Vibrant, chaotic, meme-referencing visuals",
+        "differentiator": "Leverages trending meme culture for immediate virality and shareability, giving players a humorous, low-barrier entry point that encourages social sharing."
+      },
+      {
+        "name": "Рубеж: Сибирь",
+        "theme": "Soviet sci-fi catastrophe in Siberian taiga",
+        "palette": "Dark, atmospheric Soviet-era palette with muted greens and grays",
+        "differentiator": "Deep synergy system and narrative atmosphere create immersion, while the global meta-progression tree gives long-term goals beyond individual stages."
+      },
+      {
+        "name": "Tower Defense Simulator",
+        "theme": "Generic midcore strategy",
+        "palette": "Clean, functional, low-fantasy visuals",
+        "differentiator": "Straightforward midcore gameplay with reliable progression satisfies players seeking familiar, low-commitment strategic sessions without complex meta-systems."
+      }
+    ],
+    "audience_match": "13–30 midcore: GameAnalytics data shows Tower Defense players average 130 minutes daily playtime and an ARPPU of $83, indicating demand for deep, engaging systems; 83% of browser gamers play on smartphones (Newzoo, 2026), making short-session mobile-friendly design essential.",
+    "why_competitive": "Combines roguelike-inspired branching choices with checkpoint-based micro-phases to deliver strategic depth without grinding — a combination absent from top Yandex Games and CrazyGames TD titles that rely on either static wave defense or repetitive grind-heavy progression."
+  },
+  "signature_mechanics": [
+    {
+      "id": "mech_tide_sluice",
+      "name": "Приливный шлюз",
+      "description": "В начале активной фазы игрок один раз открывает боковой шлюз и перенаправляет часть прилива на соседний маршрут, меняя зону обстрела и риск прорыва.",
+      "introduced_at_macro": 3,
+      "modifies_engine_capability": "progression.choices",
+      "player_visible_effect": "На карте загорается шлюз, и часть врагов на несколько секунд уходит по другой кромке маршрута."
+    },
+    {
+      "id": "mech_lantern_lens",
+      "name": "Переключение линз",
+      "description": "Маяк переключается между дальним сигналом и ближним залпом, меняя приоритет цели и радиус обстрела.",
+      "introduced_at_macro": 5,
+      "modifies_engine_capability": "Targeting.priority_order",
+      "player_visible_effect": "У выбранного маяка загорается вторая линза, а круг обзора и очередь целей заметно меняются."
+    }
+  ],
+  "audio_manifest": {
+    "sfx_events": [
+      "click_ui",
+      "collect_item",
+      "success_level",
+      "fail_level",
+      "hit_damage",
+      "checkpoint"
+    ],
+    "music_mood": "tension",
+    "music_bpm_target": 90,
+    "mute_default": false
+  },
+  "data": {
+    "palette": [
+      "#12232B",
+      "#E8F0EA",
+      "#2E7D7A",
+      "#A7C4B5",
+      "#E0A458"
+    ],
+    "color_roles": {
+      "primary": "#2E7D7A",
+      "secondary": "#A7C4B5",
+      "accent": "#E0A458",
+      "background": "#12232B",
+      "text": "#E8F0EA",
+      "danger": "#D9644A",
+      "success": "#7FBF8E"
+    },
+    "art_style": "clean bold outlines, flat colors, coastal folk motifs, readable silhouettes",
+    "visual_keywords": [
+      "weathered copper",
+      "salt-stained wood",
+      "lantern glass",
+      "tide-worn stone",
+      "signal ropes",
+      "foggy marsh",
+      "clear silhouettes"
+    ],
+    "sound_mood": [
+      "distant foghorn",
+      "soft wave wash",
+      "tense bell pulse"
+    ],
+    "mood_tags": [
+      "watchful",
+      "salty",
+      "tense",
+      "resolute"
+    ],
+    "role_model": {
+      "base_roles": [
+        "BACKGROUND",
+        "FOREGROUND",
+        "PLAYER",
+        "ENEMY",
+        "DANGER",
+        "SAFETY",
+        "INTERACTIVE",
+        "UI",
+        "ACCENT",
+        "NEUTRAL"
+      ],
+      "extra_roles": {},
+      "frozen_roles": [
+        "PLAYER",
+        "ENEMY",
+        "DANGER",
+        "SAFETY",
+        "INTERACTIVE",
+        "UI",
+        "ACCENT"
+      ],
+      "mutable_roles": [
+        "BACKGROUND",
+        "FOREGROUND",
+        "NEUTRAL"
+      ],
+      "role_palettes": {
+        "BACKGROUND": {
+          "primary": "#12232B",
+          "secondary": "#1C3438",
+          "accent": "#2A4A4A",
+          "outline": "#0B171C",
+          "highlight": "#456B66"
+        },
+        "FOREGROUND": {
+          "primary": "#2E7D7A",
+          "secondary": "#245E5D",
+          "accent": "#6AA39A",
+          "outline": "#12232B",
+          "highlight": "#A7C4B5"
+        },
+        "PLAYER": {
+          "primary": "#2E7D7A",
+          "secondary": "#1C3438",
+          "accent": "#E0A458",
+          "outline": "#0B171C",
+          "highlight": "#D9ECE3"
+        },
+        "ENEMY": {
+          "primary": "#7A6FA8",
+          "secondary": "#4A3F6B",
+          "accent": "#C7B8E6",
+          "outline": "#1A1F2E",
+          "highlight": "#D8D0EF"
+        },
+        "DANGER": {
+          "primary": "#D9644A",
+          "secondary": "#8E3D32",
+          "accent": "#F0B36A",
+          "outline": "#2A1512",
+          "highlight": "#F2C9B8"
+        },
+        "SAFETY": {
+          "primary": "#7FBF8E",
+          "secondary": "#4F7D5D",
+          "accent": "#CBE3B5",
+          "outline": "#173021",
+          "highlight": "#E8F0EA"
+        },
+        "INTERACTIVE": {
+          "primary": "#E0A458",
+          "secondary": "#9B6A32",
+          "accent": "#F2D19A",
+          "outline": "#2B1E0F",
+          "highlight": "#F7E8CE"
+        },
+        "UI": {
+          "primary": "#1E3A3E",
+          "secondary": "#E8F0EA",
+          "accent": "#A7C4B5",
+          "outline": "#0B171C",
+          "highlight": "#6F8F86"
+        },
+        "ACCENT": {
+          "primary": "#E0A458",
+          "secondary": "#9B6A32",
+          "accent": "#F2D19A",
+          "outline": "#2B1E0F",
+          "highlight": "#F7E8CE"
+        },
+        "NEUTRAL": {
+          "primary": "#6F8F86",
+          "secondary": "#3E5A55",
+          "accent": "#A7C4B5",
+          "outline": "#12232B",
+          "highlight": "#D6E2D8"
+        }
+      }
+    },
+    "context_model": "single_palette",
+    "palette_families": [],
+    "type_palettes": []
+  },
+  "terminology_map": {
+    "player_role": "смотритель маячной цепи",
+    "world": "Соляная топь",
+    "level": "участок обороны",
+    "currency": "смоляные гранулы",
+    "action": "ставить маяк",
+    "goal": "удержать сигнальную цепь",
+    "progression": "цепь маяков",
+    "upgrade": "настройка линз",
+    "enemy": "стеклянный прилив",
+    "tower": "маяк",
+    "wave": "приливная волна",
+    "checkpoint": "якорная стоянка",
+    "choice": "сигнальный выбор",
+    "objective": "оберегаемый участок",
+    "failure": "прорыв цепи"
+  },
+  "ui_strings": {
+    "main_menu_title": "Смотрители Соляных Маяков",
+    "play_button": "Играть",
+    "settings_button": "Настройки",
+    "back_button": "Назад",
+    "undo_button": "Снять маяк",
+    "hint_button": "Подсказка",
+    "success_message": "Сигнал удержан, прилив отступил.",
+    "failure_message": "Прилив прорвал цепь маяков.",
+    "level_complete": "Участок обороны пройден.",
+    "tutorial_welcome": "Ставьте маяки вдоль маршрута, переключайте линзы и не дайте приливу прорвать цепь."
+  },
+  "onboarding_text": "Ты — смотритель маячной цепи на краю Соляной топи. Стеклянный прилив идёт по маршрутам, и его нужно встретить светом маяков. Ставь маяки, настраивай линзы и открывай шлюзы, чтобы прикрыть слабые участки. После каждой волны выбирай усиление цепи, а якорная стоянка позволит продолжить оборону без потери всего прогресса.",
+  "boundaries": [
+    "Не добавлять героя, которым управляют напрямую.",
+    "Не вводить idle-доход вне боя.",
+    "Не делать мультиплеер и PvP.",
+    "Не добавлять крафт и производственные цепочки.",
+    "Не использовать лутбоксы и платные случайные награды.",
+    "Не менять маршрут без явного выбора игрока.",
+    "Не добавлять сюжетные катсцены, блокирующие бой.",
+    "Не превращать маяки в карточную коллекцию."
+  ],
+  "progression_arc": {
+    "early": "Игрок учится читать один маршрут, ставить первые маяки и удерживать простой прилив.",
+    "mid": "Появляются разветвления маршрута, переключение линз и выбор между усилением дальнего сигнала и ближней обороной.",
+    "late": "Цепь маяков работает как единая система: шлюзы, приоритеты целей и якорные стоянки позволяют переживать сложные приливные волны.",
+    "endless": "Открываются seeded-испытания, множители сложности и рекорды удержания цепи без обязательного гринда."
+  },
+  "content_pillars": [
+    "маячная цепь как пространственная головоломка",
+    "приливные маршруты и боковые шлюзы",
+    "выбор линз и приоритетов целей",
+    "якорные стоянки вместо потери длинной фазы",
+    "соляная маячная эстетика",
+    "ветвящиеся сигнальные выборы",
+    "мета-прогрессия без гринд-петли"
+  ],
+  "viral_hook": "Игрок открывает шлюз и смотрит, как стеклянный прилив послушно уходит на соседний маршрут — прямо под свет маяков. Один удачный выбор линз превращает слабую цепь в сияющую оборону. Короткое видео легко показывает контраст между тёмной соляной топью и вспышками бирюзовых маяков. Зритель сразу понимает: нужно не просто ставить башни, а управлять маршрутом прилива.",
+  "target_audience": "Игроки 13–30 лет, которым нравится tower defense с тактическими решениями, но не нравится повторять одни и те же волны ради прогресса. Подходит для коротких сессий на телефоне и браузере, где важны понятный первый экран и быстрый выбор улучшения. Опытные игроки получают ветвящиеся сборки и испытания, а новые — ясную цель: удержать сигнальную цепь."
+}

@@ -1,0 +1,2742 @@
+{
+  "engine_identity": {
+    "id": "td-factory-runtime",
+    "version": "1.0.0",
+    "title": "Data-Driven Tower Defense Runtime",
+    "primary_genre": "Tower Defense",
+    "quality_target": "Commercial HTML5, desktop and mobile",
+    "content_policy": "Engine contains no named game world, entities, balance tables, level content, or user-facing copy. All such values arrive through GAME_DATA."
+  },
+  "progression": {
+    "graph_model": {
+      "nodes": "stage IDs with unlock prerequisites and difficulty metadata",
+      "edges": "data references with optional mastery requirements",
+      "curves": [
+        "linear",
+        "exponential",
+        "logistic",
+        "stepped",
+        "polynomial",
+        "soft-cap",
+        "hard-cap",
+        "diminishing-return"
+      ],
+      "curve_parameters": "coefficient, exponent, midpoint, cap, step interval and seed are explicit data"
+    },
+    "stage_model": "Each stage is a sequence of micro_phases / encounters, not a static screen. Each micro-phase owns entry conditions, local rules, gameplay entities, route context, objective, spawn plan, decorative_layout and transition conditions.",
+    "density_metrics": {
+      "target_active_minutes_per_stage": {
+        "min": 10,
+        "max": 15
+      },
+      "minimum_micro_phases": 8,
+      "minimum_encounter_groups": 60,
+      "minimum_spawned_pressure_entities": 80,
+      "minimum_meaningful_player_interactions": 90,
+      "minimum_choice_points": 5,
+      "minimum_objective_beats": 3,
+      "validation": "Rejects an under-dense generated stage with structured warnings and estimated active duration; estimates include spawn cadence, planning decisions, and objective beats, not idle pauses."
+    },
+    "micro_phase_contract": {
+      "phase_fsm_states": [
+        "locked",
+        "planning",
+        "active",
+        "resolving",
+        "choice",
+        "checkpoint",
+        "complete",
+        "failed"
+      ],
+      "entry_conditions": "expression list evaluated by condition registry",
+      "local_rules": "rule IDs with scoped phase lifetime",
+      "spawn_plan": "entity archetype, count, interval, route, initial delay and per-group seed",
+      "transition_conditions": "all/any predicates on clear count, objective state, elapsed active time or explicit launch command",
+      "phase_clear": "all required groups spawned and all required active entities resolved plus objective gate"
+    },
+    "mid_stage_checkpointing": {
+      "required_for_stages_over_minutes": 5,
+      "commit_points": "phase clear before the next phase begins",
+      "snapshot": [
+        "stage and phase cursor",
+        "world entity components",
+        "tower placement and upgrade state",
+        "resources and objective integrity",
+        "objective progress",
+        "RNG state",
+        "difficulty modifiers",
+        "elapsed stage time"
+      ],
+      "recovery": "On retry resume at the last committed micro_phase with saved resources / world state and reconstituted non-decorative entities; never reset to stage start.",
+      "integrity": "schema-validated, checksummed, staged write with last-good recovery"
+    },
+    "micro_level_structure": {
+      "required_fields": [
+        "micro_level_id",
+        "sequence_index",
+        "phase",
+        "objective",
+        "world_or_board",
+        "spatial_extent",
+        "entities_in_zone",
+        "decorative_layout"
+      ],
+      "entities_in_zone_schema": {
+        "entity_id": "string ref",
+        "instance_count": "integer >= 1",
+        "entity_category": "gameplay",
+        "row": "integer",
+        "col": "integer"
+      },
+      "decorative_layout_schema": {
+        "entity_id": "string ref",
+        "instance_count": "integer >= 1",
+        "render_layer": "background_far|background_mid|background_near|foreground",
+        "z_index": "integer",
+        "has_collision": "boolean always false",
+        "parallax_factor": "number 0.0..1.0",
+        "row": "integer|null",
+        "col": "integer|null",
+        "x": "number|null",
+        "y": "number|null"
+      },
+      "layer_mapping_rules": {
+        "background_far": "LAYER_BACKGROUND; high parallax",
+        "background_mid": "LAYER_BACKGROUND; medium parallax",
+        "background_near": "LAYER_BACKGROUND; low parallax",
+        "foreground": "LAYER_FOREGROUND; parallax 0 unless explicitly rendered as camera-relative foreground"
+      }
+    },
+    "choices": "Offer 1 of N data-defined choices at configured phase boundaries. A choice can grant a tower module, modifier, economy conversion, route-risk change, or objective tradeoff; cards expose cost, effect, and drawback before selection.",
+    "tutorial": "Read from progression.tutorial; keyed localization strings, ordered steps, expected abstract command/event, completion condition and recovery hint. No tutorial prose is embedded in engine code.",
+    "meta_upgrades": "Persistent, data-defined horizontal unlocks and mastery improvements with prerequisites, caps and spend sinks.",
+    "decorative_layout_runtime": "Read every micro-phase. Instantiate render-only records for every instance_count. Map background_far/mid/near to LAYER_BACKGROUND and foreground to LAYER_FOREGROUND; sort by z_index; apply parallax_factor to camera delta. Support row/col grid coordinates and row/col=null free x/y coordinates. Force has_collision=false and exclude records from ECS gameplay queries, RuleEngine, pathing, AI, placement and Arcade Physics."
+  },
+  "rules": {
+    "shape": {
+      "rule_id": "unique string",
+      "trigger_events": "event ID array",
+      "condition": "condition expression list / all / any",
+      "effect": "ordered effect array",
+      "priority": "integer, higher first",
+      "tags": "string array",
+      "once_per": "session|phase|entity|never",
+      "cooldown_seconds": "number",
+      "scope": "global|stage|micro_phase|entity"
+    },
+    "evaluation": "Registered condition and effect handlers consume only data arguments; deterministic order, recursion budget and max-effect budget per fixed tick are enforced.",
+    "sample_rules": [
+      {
+        "rule_id": "sample.counter-response",
+        "trigger_events": [
+          "TARGET_ACQUIRED"
+        ],
+        "condition": [
+          {
+            "type": "HasComponent",
+            "component": "Attack"
+          },
+          {
+            "type": "HasTag",
+            "tag": "vulnerable_to_selected_damage"
+          }
+        ],
+        "effect": [
+          {
+            "type": "ApplyModifier",
+            "target": "event.target_id",
+            "modifier_id": "event.counter_modifier_id"
+          },
+          {
+            "type": "EmitEvent",
+            "event": "COUNTER_WINDOW_OPENED"
+          }
+        ],
+        "priority": 20,
+        "tags": [
+          "sample",
+          "combat"
+        ]
+      },
+      {
+        "rule_id": "sample.phase-reward",
+        "trigger_events": [
+          "PHASE_COMPLETED"
+        ],
+        "condition": [
+          {
+            "type": "ValueCompare",
+            "path": "event.phase_index",
+            "operator": "%",
+            "value": 2
+          }
+        ],
+        "effect": [
+          {
+            "type": "GrantResource",
+            "resource_id": "event.reward_id",
+            "amount_from": "event.reward_amount"
+          }
+        ],
+        "priority": 5,
+        "tags": [
+          "sample",
+          "progression"
+        ]
+      }
+    ],
+    "safety": "Unregistered types, invalid references, runaway trigger loops, and effect budget violations emit diagnostics and skip the invalid effect; critical corruption pauses play safely."
+  },
+  "conditions": {
+    "registry_contract": "condition_id -> pure predicate(data, event, world, config)",
+    "built_in_types": [
+      "HasComponent",
+      "HasTag",
+      "ValueCompare",
+      "DistanceCheck",
+      "EventIs",
+      "FSMStateIs",
+      "PhaseIndexCompare",
+      "ResourceAvailable",
+      "ObjectiveStatusIs",
+      "RouteReachability",
+      "RandomChanceSeeded"
+    ],
+    "operators": [
+      "eq",
+      "neq",
+      "gt",
+      "gte",
+      "lt",
+      "lte",
+      "in",
+      "contains",
+      "mod_eq"
+    ],
+    "decorative_guard": "All built-in entity conditions reject presentation-only decorative records."
+  },
+  "effects": {
+    "registry_contract": "effect_id -> bounded command handler(data, event, world, EventBus)",
+    "built_in_types": [
+      "ModifyComponent",
+      "EmitEvent",
+      "SpawnEntity",
+      "DestroyEntity",
+      "ApplyModifier",
+      "RemoveModifier",
+      "GrantResource",
+      "SpendResource",
+      "SetFSMState",
+      "SetObjectiveProgress",
+      "OfferChoice"
+    ],
+    "atomicity": "Resource and entity effects validate inputs before mutation; multi-effect rule outcomes are ordered and event traced.",
+    "decorative_guard": "SpawnEntity gameplay effects only create registered gameplay compositions; decorative_layout is loaded only by the presentation adapter."
+  },
+  "modifier_system": {
+    "formula": "FINAL = clamp(softCap, hardCap, ((BASE + FLAT_SUM) * ADDITIVE_PERCENT_PRODUCT) * MULTIPLIER_PRODUCT * CONDITIONAL_PRODUCT * TEMPORARY_PRODUCT)",
+    "metadata": [
+      "modifier_id",
+      "target_component",
+      "target_value",
+      "operation",
+      "value",
+      "condition",
+      "source",
+      "duration",
+      "priority",
+      "stacking_rule",
+      "caps",
+      "created_at"
+    ],
+    "operations": [
+      "flat",
+      "additive_percent",
+      "multiplier",
+      "conditional_multiplier",
+      "temporary_multiplier"
+    ],
+    "stacking_rules": [
+      "unique_source",
+      "highest_only",
+      "additive",
+      "multiplicative",
+      "refresh_duration",
+      "independent_instances"
+    ],
+    "priority_model": "Apply flat, additive percent, multiplier, conditional and temporary operations in declared stage order; priority sorts ties deterministically.",
+    "duration_model": "Simulation seconds, phase lifetime, session lifetime, or persistent; expiration emits MODIFIER_EXPIRED.",
+    "diminishing_returns": "Optional per-value soft cap curve with configurable threshold and exponent; hard caps applied last.",
+    "universal_values": [
+      "damage",
+      "range",
+      "rate",
+      "speed",
+      "cost",
+      "reward",
+      "splash",
+      "capacity",
+      "resistance",
+      "refund"
+    ]
+  },
+  "events": {
+    "minimum": [
+      "SESSION_STARTED",
+      "SESSION_ENDED",
+      "GAMEPLAY_START",
+      "GAMEPLAY_STOP",
+      "CORE_ACTION_PERFORMED",
+      "PROGRESS_CHANGED",
+      "REWARD_GRANTED",
+      "ACHIEVEMENT_UNLOCKED",
+      "ENTITY_CREATED",
+      "ENTITY_DESTROYED",
+      "STAGE_COMPLETED",
+      "OBJECTIVE_COMPLETED",
+      "ERROR_REPORTED",
+      "AD_REQUESTED",
+      "AD_RESULT"
+    ],
+    "payload_contract": "Plain JSON-safe object with event_id, timestamp, source_system, optional entity_id, and typed event fields.",
+    "delivery": "Synchronous dispatch is limited to pure reactions; structural changes and event cascades are queued for next frame to prevent reentrancy.",
+    "diagnostics": "Bounded ring buffer; debug UI can filter by category, severity and phase."
+  },
+  "economy": {
+    "resources": "IDs and starting amounts are data-defined; no currency names or balance values in engine code.",
+    "sources": [
+      "enemy defeat reward",
+      "phase clear reward",
+      "objective completion",
+      "meta challenge reward"
+    ],
+    "sinks": [
+      "tower placement",
+      "upgrade",
+      "ability charge",
+      "choice cost",
+      "meta unlock"
+    ],
+    "flows": [
+      "grant",
+      "spend",
+      "produce",
+      "consume",
+      "convert",
+      "store",
+      "capacity",
+      "scarcity",
+      "rarity",
+      "pricing",
+      "scaling"
+    ],
+    "transaction_model": "Atomic ledger entries with source, sink, amount, balance before/after, stage/phase and event ID.",
+    "audits": [
+      "resource starvation",
+      "overflow and cap behavior",
+      "inflation / deflation across stage curve",
+      "dominant strategies",
+      "infinite conversion loops",
+      "dead resources",
+      "runaway growth"
+    ],
+    "anti-exploit": "Reward eligibility is event-derived, duplicate IDs are idempotent, and offline time never advances active combat."
+  },
+  "runtime": {
+    "renderer": "Phaser 3 stable via pinned CDN script",
+    "physics": "Arcade Physics adapter; only gameplay-layer entities receive bodies",
+    "external_dependencies": [
+      "Phaser 3 stable CDN"
+    ],
+    "logic_renderer_boundary": "Plain JavaScript ECS owns simulation; Phaser is a presentation, input, tween, audio, camera, and Arcade body adapter.",
+    "loop": {
+      "fixed_dt_seconds": 0.0166666667,
+      "max_steps_per_frame": 5,
+      "phases": [
+        "INPUT",
+        "FIXED_UPDATE",
+        "PHYSICS",
+        "PRESENTATION_INTERPOLATION",
+        "RENDER",
+        "DEFERRED_EVENTS"
+      ],
+      "render_delta_clamp_seconds": 0.1
+    },
+    "asset_free_boot": true,
+    "deterministic_seeded_simulation": true
+  },
+  "factory_integration": {
+    "entrypoint": "engine/index.html",
+    "content_global": "window.GAME_DATA",
+    "file_mapping": {
+      "data/theme.json": "GAME_DATA.theme",
+      "data/lore.json": "GAME_DATA.lore",
+      "data/entities.json": "GAME_DATA.entities",
+      "data/progression.json": "GAME_DATA.progression",
+      "data/asset_spec.json": "GAME_DATA.assets",
+      "data/engine_spec.json": "ENGINE_SPEC contract"
+    },
+    "load_order": [
+      "injected GAME_DATA",
+      "fetch sibling JSON files",
+      "schema validation",
+      "asset manifest validation",
+      "placeholder generation",
+      "menu activation"
+    ],
+    "integration_contract": "A factory may inject one complete GAME_DATA object or package the mapped JSON files adjacent to this engine. Missing optional domains use typed defaults; missing required play domains show diagnostics and a recoverable data-loading screen."
+  },
+  "genre_analysis": {
+    "genre_family": "strategy / defense",
+    "primary_genre": "tower defense",
+    "secondary_genres": [
+      "tactical placement",
+      "light build optimization",
+      "wave survival"
+    ],
+    "subgenre": "lane-and-grid hybrid defense with branching upgrades and persistent mastery",
+    "hybrid_structure": "Discrete planning windows between continuous enemy waves; enemy routes, build cells, line-of-sight, tower roles, support coverage, resources, and phase modifiers form one tactical system.",
+    "player_role": "Defense architect responsible for a vulnerable objective.",
+    "player_fantasy": "Read the route, assemble a complementary defense, then adapt it as enemy pressure changes.",
+    "primary_activity": "Place, reposition, specialize, and activate defenses while waves traverse authored or generated routes.",
+    "primary_decisions": [
+      "where to cover",
+      "which threat to answer",
+      "when to spend or save",
+      "which tower path to specialize",
+      "whether to accept risk for a stronger reward"
+    ],
+    "skill_model": [
+      "spatial reasoning",
+      "threat prioritization",
+      "resource timing",
+      "synergy construction",
+      "adaptation under changing constraints"
+    ],
+    "risk_model": "Leaking enemies consume finite objective integrity; overspending creates future coverage gaps; counter-specific waves punish single-role builds.",
+    "reward_model": "Currency during a stage, phase rewards and explicit build choices, stage mastery, achievement progress, and persistent unlock currency.",
+    "progression_model": "In-run horizontal build choices plus persistent account unlocks and mastery records; content graph and curves are data-defined.",
+    "replayability_model": "Seeded route / wave variants, selectable difficulty and mutators, branching loadouts, challenge objectives, and score optimization."
+  },
+  "reference_inspiration": {
+    "method": "Opened product/developer pages and checked feature descriptions; no names, art, characters, wording, or proprietary data are copied.",
+    "references": [
+      {
+        "name": "Bloons TD 6",
+        "source": "https://ninjakiwi.com/Games/Mobile/Bloons-TD-6.html",
+        "verified": [
+          "multiple tower upgrade paths",
+          "activated abilities",
+          "maps with line-of-sight blockers",
+          "ongoing strategy framing"
+        ],
+        "design_lesson": "Readable counters and meaningful upgrade specialization create build variety."
+      },
+      {
+        "name": "Kingdom Rush",
+        "source": "https://www.ironhidegames.com/games/kingdom-rush",
+        "verified": [
+          "different terrain contexts",
+          "tower upgrades and specializations",
+          "reinforcements and active abilities",
+          "enemy special abilities"
+        ],
+        "design_lesson": "Distinct enemy behaviors, terrain, and tactical active tools add decisions beyond placement."
+      },
+      {
+        "name": "Mindustry",
+        "source": "https://store.steampowered.com/app/1127400/Mindustry/",
+        "verified": [
+          "turrets require supplied ammo, coolant, or power",
+          "production and logistics interact with defense",
+          "campaign maps and procedural sectors",
+          "editable game rules"
+        ],
+        "design_lesson": "Resource supply and support structures can make economy a spatial defense puzzle."
+      },
+      {
+        "name": "CrazyGames Tower Defense category",
+        "source": "https://www.crazygames.com/t/tower-defense",
+        "verified": [
+          "browser-playable tower defense discovery category"
+        ],
+        "design_lesson": "The runtime must boot quickly, communicate controls immediately, and remain legible at varied viewport sizes."
+      }
+    ],
+    "retention_drivers": [
+      "counterplay that can be read before failure",
+      "branching build identity",
+      "short feedback loops inside a long stage",
+      "persistent mastery",
+      "replayable constraints"
+    ],
+    "genre_expectations": [
+      "visible route and objective",
+      "distinct build areas",
+      "clear range and target feedback",
+      "legible wave escalation",
+      "spend / save tradeoffs",
+      "readable win and failure state"
+    ],
+    "variation_pillars": [
+      "route topology",
+      "enemy armor, speed, flight, shielding, stealth, and splitting tags",
+      "tower attack and support roles",
+      "phase mutators",
+      "objectives and economy constraints"
+    ],
+    "commercial_presentation_pillars": [
+      "fast first interaction",
+      "animated but uncluttered combat",
+      "high-contrast danger telegraphs",
+      "clear upgrade choice cards",
+      "responsive layout",
+      "sound and effects controls"
+    ]
+  },
+  "player_fantasy": {
+    "controls": "The player commands a portfolio of defenses and finite resources rather than directly steering a combat unit.",
+    "managed_systems": [
+      "grid build sites",
+      "route coverage",
+      "tower targets and upgrade branches",
+      "economy",
+      "objective integrity",
+      "phase and campaign progression"
+    ],
+    "optimization": [
+      "coverage per cost",
+      "damage-type complementarity",
+      "splash value",
+      "support overlap",
+      "upgrade timing",
+      "leak risk"
+    ],
+    "long_term_goal": "Clear a content graph at increasing mastery, unlock new strategic options, and beat seeded challenge records."
+  },
+  "gameplay_loops": {
+    "primary_loop": [
+      "INPUT: inspect route, threat and economy",
+      "ACTION: place, sell, upgrade, retarget, activate, or launch a wave",
+      "SYSTEM RESPONSE: towers acquire targets and resolve attacks",
+      "CONSEQUENCE: enemies lose layers / defenses spend resources / objective may take leaks",
+      "FEEDBACK: range, projectiles, hit response, threat warnings and resource deltas",
+      "REWARD_OR_COST: currency, score, integrity, cooldowns",
+      "NEW_DECISION: patch a counter gap, save, or specialize"
+    ],
+    "secondary_loops": [
+      "Wave scouting -> identify counters -> adjust target priorities -> validate coverage",
+      "Tower specialization -> synergy coverage -> phase choice -> build identity",
+      "Economy investment -> delayed payoff -> survival risk -> future purchase capacity",
+      "Enemy split / shield / armor interaction -> target priority change -> area or support response",
+      "Leak event -> checkpoint result -> mastery adjustment -> replay"
+    ],
+    "meta_loop": [
+      "SESSION -> stage result -> XP / unlock currency -> unlock tower modules or mutators -> new loadout choices -> next session"
+    ],
+    "endgame_loop": [
+      "higher difficulty -> data-driven wave composition -> build optimization -> seeded score / mastery record -> challenge mutators"
+    ],
+    "decision_density": {
+      "minimum_meaningful_decisions_per_stage": 90,
+      "expected_choice_points": "at least one meaningful build, target, economy, or phase decision every 8-12 seconds during active play",
+      "non_idle_requirement": "Waves keep attacks and leaks reactive; phase transitions expose explicit build / launch choices and cannot be only wait-and-claim."
+    }
+  },
+  "system_architecture": {
+    "principles": [
+      "composition over inheritance",
+      "systems query components",
+      "cross-system communication via events",
+      "gameplay data and runtime state are separate",
+      "presentation never authors rules",
+      "registries extend content without type switch trees"
+    ],
+    "core_layers": [
+      "ECS",
+      "EventBus",
+      "RuleEngine",
+      "ModifierStack",
+      "FSM",
+      "LayeredRender",
+      "FixedLoop"
+    ],
+    "system_contract": [
+      "system_id",
+      "purpose",
+      "category",
+      "inputs",
+      "outputs",
+      "state",
+      "data_sources",
+      "dependencies",
+      "events_emitted",
+      "events_consumed",
+      "rules",
+      "conditions",
+      "effects",
+      "modifiers",
+      "player_impact",
+      "runtime_lifecycle",
+      "configurable"
+    ],
+    "system_lifecycle": [
+      "register",
+      "initialize",
+      "load",
+      "activate",
+      "update",
+      "react",
+      "pause",
+      "resume",
+      "serialize",
+      "deserialize",
+      "shutdown"
+    ],
+    "lifecycle_methods": [
+      "initialize()",
+      "update(fixedDt)",
+      "shutdown()"
+    ],
+    "direct_system_calls": "Prohibited; systems publish or consume EventBus events. World/registry/adapter services are shared infrastructure, not system peers."
+  },
+  "core_architecture": {
+    "entity_component_model": {
+      "entity_definition": "Unique ID and set of component IDs only; no behavior, content type, or universal type field.",
+      "base_components": [
+        "Transform",
+        "Sprite",
+        "Collider",
+        "Health",
+        "Velocity"
+      ],
+      "gameplay_components": [
+        "PathFollower",
+        "Tower",
+        "Targeting",
+        "Attack",
+        "Projectile",
+        "Economy",
+        "FSM",
+        "Objective",
+        "ModifierSet",
+        "Lifetime",
+        "GridAnchor"
+      ],
+      "presentation_components": [
+        "Animation",
+        "Decorative",
+        "UIAnchor"
+      ],
+      "composition_rules": "Component values are plain serializable data. Runtime add/remove is supported. Archetype identity is a data bundle plus tags, never a class or entity.type.",
+      "query_contract": "Systems query required component sets; entity IDs remain numeric and component maps are indexed by ID."
+    },
+    "system_order": [
+      "InputSystem",
+      "StageSystem",
+      "PlacementSystem",
+      "FSMSystem",
+      "PathMovementSystem",
+      "TargetingSystem",
+      "AttackSystem",
+      "ProjectileSystem",
+      "DamageSystem",
+      "EconomySystem",
+      "ObjectiveSystem",
+      "CheckpointSystem",
+      "AchievementSystem",
+      "RuleSystem",
+      "ModifierSystem",
+      "GameplayCollisionSystem",
+      "PresentationSyncSystem"
+    ],
+    "system_phases": {
+      "INPUT": [
+        "InputSystem"
+      ],
+      "FIXED_UPDATE": [
+        "StageSystem",
+        "PlacementSystem",
+        "FSMSystem",
+        "PathMovementSystem",
+        "TargetingSystem",
+        "AttackSystem",
+        "ProjectileSystem",
+        "DamageSystem",
+        "EconomySystem",
+        "ObjectiveSystem",
+        "CheckpointSystem",
+        "AchievementSystem",
+        "RuleSystem",
+        "ModifierSystem"
+      ],
+      "PHYSICS": [
+        "GameplayCollisionSystem"
+      ],
+      "PRESENTATION": [
+        "PresentationSyncSystem"
+      ],
+      "DEFERRED_EVENTS": [
+        "EventBus.flush"
+      ]
+    },
+    "event_bus": {
+      "delivery": [
+        "synchronous current-frame dispatch",
+        "deferred next-frame queue"
+      ],
+      "core_events": [
+        "SESSION_STARTED",
+        "SESSION_ENDED",
+        "GAMEPLAY_START",
+        "GAMEPLAY_STOP",
+        "CORE_ACTION_PERFORMED",
+        "PROGRESS_CHANGED",
+        "REWARD_GRANTED",
+        "ACHIEVEMENT_UNLOCKED",
+        "ENTITY_CREATED",
+        "ENTITY_DESTROYED",
+        "STAGE_COMPLETED",
+        "OBJECTIVE_COMPLETED",
+        "ERROR_REPORTED",
+        "AD_REQUESTED",
+        "AD_RESULT"
+      ],
+      "extension_events": [
+        "COMMAND_BUILD",
+        "BUILD_PLACED",
+        "BUILD_REJECTED",
+        "TOWER_UPGRADED",
+        "TOWER_SOLD",
+        "WAVE_STARTED",
+        "ENEMY_SPAWNED",
+        "TARGET_ACQUIRED",
+        "ATTACK_REQUESTED",
+        "PROJECTILE_HIT",
+        "DAMAGE_APPLIED",
+        "ENEMY_DEFEATED",
+        "ENEMY_LEAKED",
+        "RESOURCE_CHANGED",
+        "CHOICE_OFFERED",
+        "CHOICE_SELECTED",
+        "CHECKPOINT_SAVED",
+        "PHASE_COMPLETED",
+        "PHASE_CLEAR_REQUESTED",
+        "PHASE_CLEAR_ALLOWED",
+        "OBJECTIVE_SET",
+        "SETTING_CHANGED",
+        "DATA_DIAGNOSTIC"
+      ]
+    },
+    "micro_animation_system": {
+      "supported_classes": [
+        "anim-idle",
+        "anim-hover",
+        "anim-interact",
+        "anim-destroy"
+      ],
+      "implementation_rule": "Phaser 3 Tweens mapped from entities.json fields; sprite sheets are not required for basic juice.",
+      "trigger_mechanism": "Idle tween only on marked interactive / key entities; pointerover, pointerdown and destroy events drive hover, squash/flash and exit tweens.",
+      "destroy_policy": "Tweak scale/tint/alpha then remove only the presentation object; ECS destruction remains event-owned."
+    },
+    "fixed_loop": {
+      "input_phase": "Gather hardware events into abstract commands",
+      "update_phase": "Run ordered systems and JSON rules at fixed dt",
+      "physics_phase": "Resolve only gameplay-layer Arcade bodies",
+      "render_phase": "Interpolate component snapshots into Phaser display objects",
+      "event_phase": "Flush next-frame events after render",
+      "catch_up_cap": 5
+    }
+  },
+  "systems": [
+    {
+      "system_id": "StageSystem",
+      "purpose": "Advance micro-phases, spawn schedules, wave states and authored decisions.",
+      "category": "genre / progression",
+      "inputs": [
+        "phase config",
+        "launch command",
+        "world state"
+      ],
+      "outputs": [
+        "phase FSM",
+        "spawn requests"
+      ],
+      "state": [
+        "current phase",
+        "spawn cursor",
+        "phase clock"
+      ],
+      "data_sources": [
+        "progression.stages_or_levels.micro_phases"
+      ],
+      "dependencies": [
+        "EventBus",
+        "FSMSystem"
+      ],
+      "events_emitted": [
+        "WAVE_STARTED",
+        "ENEMY_SPAWNED",
+        "PHASE_COMPLETED",
+        "PROGRESS_CHANGED"
+      ],
+      "events_consumed": [
+        "BUILD_REQUESTED",
+        "ENEMY_DEFEATED",
+        "ENEMY_LEAKED"
+      ],
+      "rules": [
+        "phase entry and exit conditions are data-driven"
+      ],
+      "conditions": [
+        "phase clear",
+        "time gate",
+        "objective threshold"
+      ],
+      "effects": [
+        "spawn data archetype",
+        "advance phase",
+        "offer choice"
+      ],
+      "modifiers": [
+        "phase intensity modifiers"
+      ],
+      "player_impact": "Sets pacing and opens planning windows.",
+      "runtime_lifecycle": [
+        "initialize",
+        "activate",
+        "update",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "PlacementSystem",
+      "purpose": "Validate grid occupancy, cost, legal build zone, sell/refund and sequential upgrades.",
+      "category": "genre / spatial strategy",
+      "inputs": [
+        "abstract placement command",
+        "grid",
+        "Economy transactions"
+      ],
+      "outputs": [
+        "tower entity composition"
+      ],
+      "state": [
+        "occupancy index",
+        "pending transactions"
+      ],
+      "data_sources": [
+        "stage build cells",
+        "entities player tools"
+      ],
+      "dependencies": [
+        "EventBus",
+        "ECS registry",
+        "ModifierStack"
+      ],
+      "events_emitted": [
+        "BUILD_PLACED",
+        "BUILD_REJECTED",
+        "TOWER_UPGRADED",
+        "TOWER_SOLD",
+        "CORE_ACTION_PERFORMED",
+        "RESOURCE_TRANSACTION_REQUEST"
+      ],
+      "events_consumed": [
+        "COMMAND_BUILD",
+        "COMMAND_UPGRADE",
+        "COMMAND_SELL",
+        "RESOURCE_TRANSACTION_RESULT"
+      ],
+      "rules": [
+        "only gameplay cells are buildable; route cells and occupied cells reject"
+      ],
+      "conditions": [
+        "cell valid",
+        "currency sufficient",
+        "upgrade path next tier valid"
+      ],
+      "effects": [
+        "create tower components",
+        "deduct cost",
+        "return configured refund",
+        "apply upgrade modifiers"
+      ],
+      "modifiers": [
+        "cost and refund modifiers"
+      ],
+      "player_impact": "Turns spatial and economic intent into a legal defense build.",
+      "runtime_lifecycle": [
+        "initialize",
+        "activate",
+        "update",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "PathMovementSystem",
+      "purpose": "Move active opposition along authored route segments and detect endpoint arrival.",
+      "category": "genre / pressure",
+      "inputs": [
+        "Transform",
+        "PathFollower",
+        "Velocity"
+      ],
+      "outputs": [
+        "interpolated path position"
+      ],
+      "state": [
+        "route cursor",
+        "distance"
+      ],
+      "data_sources": [
+        "phase route",
+        "entity components"
+      ],
+      "dependencies": [
+        "EventBus",
+        "ModifierStack"
+      ],
+      "events_emitted": [
+        "ENEMY_LEAKED",
+        "PROGRESS_CHANGED"
+      ],
+      "events_consumed": [
+        "ENTITY_CREATED",
+        "FSM_TRANSITIONED"
+      ],
+      "rules": [
+        "movement speed is modifier-evaluated; arrival is a gameplay event"
+      ],
+      "conditions": [
+        "path endpoint reached",
+        "FSM permits movement"
+      ],
+      "effects": [
+        "update Transform",
+        "emit leak"
+      ],
+      "modifiers": [
+        "speed, slow, haste"
+      ],
+      "player_impact": "Makes route coverage, slowing and leaks matter.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "pause",
+        "resume",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "TargetingSystem",
+      "purpose": "Find legal targets by range, line-of-sight, tags and tower priority policy.",
+      "category": "genre / counterplay",
+      "inputs": [
+        "Transform",
+        "Tower",
+        "Targeting",
+        "opposition tags"
+      ],
+      "outputs": [
+        "target ID"
+      ],
+      "state": [
+        "last target"
+      ],
+      "data_sources": [
+        "tower target profile",
+        "map blockers"
+      ],
+      "dependencies": [
+        "EventBus"
+      ],
+      "events_emitted": [
+        "TARGET_ACQUIRED"
+      ],
+      "events_consumed": [
+        "ENTITY_DESTROYED",
+        "PHASE_STARTED"
+      ],
+      "rules": [
+        "deterministic priority then nearest tie-break"
+      ],
+      "conditions": [
+        "within effective range",
+        "tag allowed",
+        "visible when required"
+      ],
+      "effects": [
+        "set target reference"
+      ],
+      "modifiers": [
+        "range, acquisition radius"
+      ],
+      "player_impact": "Makes targeting modes and placement geometry strategic.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "pause",
+        "resume",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "AttackSystem",
+      "purpose": "Resolve tower cooldowns and request projectile, beam, or area attacks.",
+      "category": "genre / combat",
+      "inputs": [
+        "Tower",
+        "Attack",
+        "Targeting"
+      ],
+      "outputs": [
+        "attack requests"
+      ],
+      "state": [
+        "cooldown"
+      ],
+      "data_sources": [
+        "tower attack component",
+        "rules"
+      ],
+      "dependencies": [
+        "EventBus",
+        "ModifierStack"
+      ],
+      "events_emitted": [
+        "ATTACK_REQUESTED"
+      ],
+      "events_consumed": [
+        "TARGET_ACQUIRED"
+      ],
+      "rules": [
+        "fire only when target remains valid and cooldown expires"
+      ],
+      "conditions": [
+        "range",
+        "cooldown",
+        "target tag"
+      ],
+      "effects": [
+        "emit attack request"
+      ],
+      "modifiers": [
+        "damage, rate, projectile speed, splash radius"
+      ],
+      "player_impact": "Converts complementarity into visible combat response.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "pause",
+        "resume",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "ProjectileSystem",
+      "purpose": "Simulate pooled projectiles and apply hit/area/slow payloads through events.",
+      "category": "genre / combat",
+      "inputs": [
+        "Projectile",
+        "Transform",
+        "target transform"
+      ],
+      "outputs": [
+        "hit events"
+      ],
+      "state": [
+        "pool",
+        "travel state"
+      ],
+      "data_sources": [
+        "attack payloads"
+      ],
+      "dependencies": [
+        "EventBus",
+        "ObjectPool"
+      ],
+      "events_emitted": [
+        "PROJECTILE_HIT",
+        "ENTITY_DESTROYED"
+      ],
+      "events_consumed": [
+        "ATTACK_REQUESTED"
+      ],
+      "rules": [
+        "homing and straight travel are component strategies"
+      ],
+      "conditions": [
+        "contact",
+        "timeout",
+        "target invalid"
+      ],
+      "effects": [
+        "request damage and return object to pool"
+      ],
+      "modifiers": [
+        "projectile speed and area"
+      ],
+      "player_impact": "Makes attack timing and impact readable.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "pause",
+        "resume",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "DamageSystem",
+      "purpose": "Resolve armor, shield, resistances, layers, defeat rewards, split/spawn reactions and leak damage.",
+      "category": "genre / counterplay",
+      "inputs": [
+        "DamageRequest",
+        "Health",
+        "tags",
+        "ModifierSet"
+      ],
+      "outputs": [
+        "health changes"
+      ],
+      "state": [
+        "damage ledger"
+      ],
+      "data_sources": [
+        "entity components",
+        "rules"
+      ],
+      "dependencies": [
+        "EventBus",
+        "ModifierStack"
+      ],
+      "events_emitted": [
+        "DAMAGE_APPLIED",
+        "ENEMY_DEFEATED",
+        "ENTITY_DESTROYED",
+        "REWARD_GRANTED"
+      ],
+      "events_consumed": [
+        "PROJECTILE_HIT",
+        "DAMAGE_REQUESTED"
+      ],
+      "rules": [
+        "damage type resolves against data-defined resistance and layers"
+      ],
+      "conditions": [
+        "health depleted",
+        "shield present",
+        "split-on-defeat tag"
+      ],
+      "effects": [
+        "modify Health",
+        "emit child spawn request"
+      ],
+      "modifiers": [
+        "damage, armor, resistance, vulnerability"
+      ],
+      "player_impact": "Enforces counter coverage and rewards correct threat response.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "EconomySystem",
+      "purpose": "Track sources, sinks, conversions, capacity and scarcity for stage and meta resources.",
+      "category": "genre / economy",
+      "inputs": [
+        "resource events",
+        "Economy components"
+      ],
+      "outputs": [
+        "balance changes"
+      ],
+      "state": [
+        "ledger",
+        "caps"
+      ],
+      "data_sources": [
+        "economy configuration",
+        "entity rewards and costs"
+      ],
+      "dependencies": [
+        "EventBus",
+        "ModifierStack",
+        "SaveSystem"
+      ],
+      "events_emitted": [
+        "RESOURCE_CHANGED",
+        "REWARD_GRANTED",
+        "ERROR_REPORTED"
+      ],
+      "events_consumed": [
+        "BUILD_PLACED",
+        "TOWER_SOLD",
+        "ENEMY_DEFEATED",
+        "ENEMY_LEAKED",
+        "STAGE_COMPLETED"
+      ],
+      "rules": [
+        "all transactions are atomic and ledgered"
+      ],
+      "conditions": [
+        "balance",
+        "capacity",
+        "eligibility"
+      ],
+      "effects": [
+        "grant, spend, convert, cap"
+      ],
+      "modifiers": [
+        "cost, yield, capacity, reward"
+      ],
+      "player_impact": "Creates spend-now versus prepare-later pressure.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "ObjectiveSystem",
+      "purpose": "Evaluate multi-condition goals, failure limits, chains and stage results.",
+      "category": "genre / objectives",
+      "inputs": [
+        "objective definitions",
+        "event stream",
+        "world state"
+      ],
+      "outputs": [
+        "objective state"
+      ],
+      "state": [
+        "progress, status"
+      ],
+      "data_sources": [
+        "phase and stage objective data"
+      ],
+      "dependencies": [
+        "EventBus"
+      ],
+      "events_emitted": [
+        "OBJECTIVE_COMPLETED",
+        "STAGE_COMPLETED",
+        "SESSION_ENDED"
+      ],
+      "events_consumed": [
+        "ENEMY_LEAKED",
+        "ENEMY_DEFEATED",
+        "PHASE_COMPLETED",
+        "RESOURCE_CHANGED"
+      ],
+      "rules": [
+        "requirements are composable all/any/count/value predicates"
+      ],
+      "conditions": [
+        "complete",
+        "fail",
+        "dependency available"
+      ],
+      "effects": [
+        "unlock, reward, end session"
+      ],
+      "modifiers": [
+        "objective thresholds"
+      ],
+      "player_impact": "Supplies varied win constraints beyond survival.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "CheckpointSystem",
+      "purpose": "Capture resumable stage state at phase boundaries and restore safely after failure.",
+      "category": "genre / persistence",
+      "inputs": [
+        "phase transition",
+        "ECS snapshot"
+      ],
+      "outputs": [
+        "checkpoint save"
+      ],
+      "state": [
+        "last committed phase"
+      ],
+      "data_sources": [
+        "save schema"
+      ],
+      "dependencies": [
+        "EventBus",
+        "SaveSystem"
+      ],
+      "events_emitted": [
+        "CHECKPOINT_SAVED"
+      ],
+      "events_consumed": [
+        "PHASE_COMPLETED",
+        "SESSION_ENDED"
+      ],
+      "rules": [
+        "commit only validated phase snapshots"
+      ],
+      "conditions": [
+        "checkpoint phase threshold"
+      ],
+      "effects": [
+        "serialize position, resources, objectives, entities, RNG"
+      ],
+      "modifiers": [],
+      "player_impact": "Failure resumes at the latest cleared phase instead of erasing a long stage.",
+      "runtime_lifecycle": [
+        "initialize",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "RuleSystem",
+      "purpose": "Evaluate JSON conditions and apply registered JSON effects without content-specific code branches.",
+      "category": "core / data rules",
+      "inputs": [
+        "rules",
+        "events",
+        "entity queries"
+      ],
+      "outputs": [
+        "component and event mutations"
+      ],
+      "state": [
+        "cooldowns",
+        "once keys"
+      ],
+      "data_sources": [
+        "GAME_DATA.rules"
+      ],
+      "dependencies": [
+        "EventBus",
+        "component/effect registries"
+      ],
+      "events_emitted": [
+        "RULE_FIRED",
+        "ERROR_REPORTED"
+      ],
+      "events_consumed": [
+        "all configured triggers"
+      ],
+      "rules": [
+        "priority desc, stable ID tie-break, bounded effects per tick"
+      ],
+      "conditions": [
+        "registered condition predicates"
+      ],
+      "effects": [
+        "registered effect handlers"
+      ],
+      "modifiers": [
+        "ApplyModifier effect"
+      ],
+      "player_impact": "Enables new content mechanics through data when they fit registered primitives.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "AchievementSystem",
+      "purpose": "Track event-driven mastery goals and grant persistent rewards.",
+      "category": "meta progression",
+      "inputs": [
+        "event stream",
+        "achievement definitions"
+      ],
+      "outputs": [
+        "progress and unlocks"
+      ],
+      "state": [
+        "counter and completion state"
+      ],
+      "data_sources": [
+        "progression.achievements"
+      ],
+      "dependencies": [
+        "EventBus",
+        "SaveSystem"
+      ],
+      "events_emitted": [
+        "ACHIEVEMENT_UNLOCKED",
+        "REWARD_GRANTED"
+      ],
+      "events_consumed": [
+        "configured event IDs"
+      ],
+      "rules": [
+        "conditions use event counters, thresholds and tags"
+      ],
+      "conditions": [
+        "target met",
+        "prerequisite met"
+      ],
+      "effects": [
+        "persist unlock and reward"
+      ],
+      "modifiers": [],
+      "player_impact": "Makes mastery and alternate play styles persist across stages.",
+      "runtime_lifecycle": [
+        "initialize",
+        "react",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "PresentationSyncSystem",
+      "purpose": "Project immutable gameplay snapshots into ordered Phaser display layers and feedback channels.",
+      "category": "presentation adapter",
+      "inputs": [
+        "renderable component snapshots",
+        "event feedback"
+      ],
+      "outputs": [
+        "display list, HUD view model"
+      ],
+      "state": [
+        "sprite cache, tween handles"
+      ],
+      "data_sources": [
+        "theme, assets, localization"
+      ],
+      "dependencies": [
+        "PhaserAdapter only"
+      ],
+      "events_emitted": [
+        "PRESENTATION_READY"
+      ],
+      "events_consumed": [
+        "ENTITY_CREATED",
+        "ENTITY_DESTROYED",
+        "DAMAGE_APPLIED",
+        "RESOURCE_CHANGED",
+        "ENEMY_LEAKED"
+      ],
+      "rules": [
+        "decoratives never enter gameplay queries"
+      ],
+      "conditions": [
+        "component dirty or visual event"
+      ],
+      "effects": [
+        "draw, tween, sound, particles, danger pulse"
+      ],
+      "modifiers": [],
+      "player_impact": "Communicates state, danger and rewards without changing simulation.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "pause",
+        "resume",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "InputSystem",
+      "purpose": "Normalize hardware inputs into abstract gameplay commands.",
+      "category": "core / input",
+      "inputs": [
+        "keyboard",
+        "pointer",
+        "touch",
+        "gamepad"
+      ],
+      "outputs": [
+        "command events"
+      ],
+      "state": [
+        "device edge state"
+      ],
+      "data_sources": [
+        "GAME_DATA.input mappings"
+      ],
+      "dependencies": [
+        "EventBus"
+      ],
+      "events_emitted": [
+        "COMMAND_BUILD",
+        "COMMAND_LAUNCH_PHASE",
+        "COMMAND_UPGRADE",
+        "COMMAND_SELL"
+      ],
+      "events_consumed": [],
+      "rules": [
+        "hardware identifiers never enter gameplay systems"
+      ],
+      "conditions": [
+        "mapped action and pressed edge"
+      ],
+      "effects": [
+        "emit normalized command"
+      ],
+      "modifiers": [],
+      "player_impact": "Consistent controls across desktop and mobile.",
+      "runtime_lifecycle": [
+        "register",
+        "initialize",
+        "update",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "FSMSystem",
+      "purpose": "Evaluate data-defined transitions for pressure entities and phase states.",
+      "category": "core / state",
+      "inputs": [
+        "FSM components",
+        "state graphs",
+        "conditions"
+      ],
+      "outputs": [
+        "state transitions"
+      ],
+      "state": [
+        "current state and entry time per entity"
+      ],
+      "data_sources": [
+        "GAME_DATA.ai.state_graphs"
+      ],
+      "dependencies": [
+        "EventBus",
+        "condition registry"
+      ],
+      "events_emitted": [
+        "FSM_TRANSITIONED"
+      ],
+      "events_consumed": [
+        "entity state changes"
+      ],
+      "rules": [
+        "priority order and one transition per entity per fixed tick"
+      ],
+      "conditions": [
+        "registered state predicates"
+      ],
+      "effects": [
+        "set state and emit transition"
+      ],
+      "modifiers": [
+        "state-scoped modifiers"
+      ],
+      "player_impact": "Distinct pressure archetypes use explicit behavior graphs.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "ModifierSystem",
+      "purpose": "Expire and evaluate universal numeric modifiers.",
+      "category": "core / value resolution",
+      "inputs": [
+        "ModifierStack",
+        "fixed dt"
+      ],
+      "outputs": [
+        "derived values"
+      ],
+      "state": [
+        "modifier instances and expiry"
+      ],
+      "data_sources": [
+        "GAME_DATA.modifiers and effect payloads"
+      ],
+      "dependencies": [
+        "ModifierStack",
+        "EventBus"
+      ],
+      "events_emitted": [
+        "MODIFIER_EXPIRED"
+      ],
+      "events_consumed": [
+        "modifier add/remove"
+      ],
+      "rules": [
+        "flat, percent, multiplier, condition, duration, caps"
+      ],
+      "conditions": [
+        "modifier predicates"
+      ],
+      "effects": [
+        "derive final value"
+      ],
+      "modifiers": [
+        "all numeric gameplay values"
+      ],
+      "player_impact": "Shared tuning and synergies across towers, enemies, economy and objectives.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "serialize",
+        "deserialize",
+        "shutdown"
+      ],
+      "configurable": true
+    },
+    {
+      "system_id": "GameplayCollisionSystem",
+      "purpose": "Resolve gameplay-layer spatial overlaps; never examines background, foreground or UI records.",
+      "category": "core / physics",
+      "inputs": [
+        "Collider",
+        "Transform",
+        "gameplay layer"
+      ],
+      "outputs": [
+        "overlap events"
+      ],
+      "state": [
+        "active overlap pairs"
+      ],
+      "data_sources": [
+        "gameplay component data"
+      ],
+      "dependencies": [
+        "ECS registry",
+        "EventBus"
+      ],
+      "events_emitted": [
+        "GAMEPLAY_COLLISION"
+      ],
+      "events_consumed": [
+        "component lifecycle"
+      ],
+      "rules": [
+        "decorative registry has no gameplay IDs or bodies"
+      ],
+      "conditions": [
+        "circle overlap between gameplay colliders"
+      ],
+      "effects": [
+        "emit overlap-enter event"
+      ],
+      "modifiers": [],
+      "player_impact": "Allows content-defined blockers and contact mechanics without coupling renderer to rules.",
+      "runtime_lifecycle": [
+        "initialize",
+        "update",
+        "shutdown"
+      ],
+      "configurable": true
+    }
+  ],
+  "system_dependencies": {
+    "graph": [
+      "InputSystem -> EventBus -> PlacementSystem -> EconomySystem",
+      "StageSystem -> EventBus -> FSMSystem -> PathMovementSystem -> ObjectiveSystem",
+      "TargetingSystem -> AttackSystem -> ProjectileSystem -> DamageSystem -> EconomySystem",
+      "CheckpointSystem -> SaveSystem",
+      "all gameplay events -> AchievementSystem",
+      "ECS snapshots -> PresentationSyncSystem"
+    ],
+    "scheduling": "Topological order with explicit phase and priority from core_architecture.system_order; event consumers observe queued events in the following event phase unless synchronous dispatch is declared.",
+    "read_write_contract": {
+      "PathMovementSystem": {
+        "reads": [
+          "PathFollower",
+          "Velocity",
+          "FSM"
+        ],
+        "writes": [
+          "Transform",
+          "PathFollower"
+        ]
+      },
+      "TargetingSystem": {
+        "reads": [
+          "Transform",
+          "Tower",
+          "Targeting",
+          "tags"
+        ],
+        "writes": [
+          "Targeting.target_id"
+        ]
+      },
+      "DamageSystem": {
+        "reads": [
+          "Health",
+          "ModifierSet",
+          "tags"
+        ],
+        "writes": [
+          "Health"
+        ]
+      },
+      "PlacementSystem": {
+        "reads": [
+          "GridAnchor",
+          "Economy",
+          "build grid"
+        ],
+        "writes": [
+          "entity composition",
+          "occupancy"
+        ]
+      }
+    }
+  },
+  "system_interactions": {
+    "matrix": [
+      {
+        "source_system": "PlacementSystem",
+        "target_system": "EconomySystem",
+        "data_flow": "validated tower cost and transaction ID",
+        "event_flow": "BUILD_PLACED / RESOURCE_CHANGED",
+        "state_change": "currency down; tower composition registered",
+        "gameplay_effect": "coverage expands while future purchasing power falls"
+      },
+      {
+        "source_system": "PathMovementSystem",
+        "target_system": "TargetingSystem",
+        "data_flow": "enemy Transform and route progress",
+        "event_flow": "PROGRESS_CHANGED",
+        "state_change": "target distance / priority changes",
+        "gameplay_effect": "late-route enemies can become urgent targets"
+      },
+      {
+        "source_system": "TargetingSystem",
+        "target_system": "AttackSystem",
+        "data_flow": "target entity ID",
+        "event_flow": "TARGET_ACQUIRED",
+        "state_change": "tower target and cooldown",
+        "gameplay_effect": "priority and range determine attack allocation"
+      },
+      {
+        "source_system": "AttackSystem",
+        "target_system": "ProjectileSystem",
+        "data_flow": "attack payload and target snapshot",
+        "event_flow": "ATTACK_REQUESTED",
+        "state_change": "projectile enters pooled simulation",
+        "gameplay_effect": "rate, speed and target movement influence hit probability"
+      },
+      {
+        "source_system": "ProjectileSystem",
+        "target_system": "DamageSystem",
+        "data_flow": "impact, damage type, area and status payload",
+        "event_flow": "PROJECTILE_HIT / DAMAGE_REQUESTED",
+        "state_change": "health, armor, shield, status",
+        "gameplay_effect": "counter tags and area grouping create emergent efficiency"
+      },
+      {
+        "source_system": "DamageSystem",
+        "target_system": "EconomySystem",
+        "data_flow": "defeat reward and split request",
+        "event_flow": "ENEMY_DEFEATED / REWARD_GRANTED",
+        "state_change": "resources and spawn population",
+        "gameplay_effect": "splash value competes with precision and leak risk"
+      },
+      {
+        "source_system": "ObjectiveSystem",
+        "target_system": "CheckpointSystem",
+        "data_flow": "phase completion and resumable snapshot",
+        "event_flow": "STAGE_COMPLETED / CHECKPOINT_SAVED",
+        "state_change": "campaign position and recovery state",
+        "gameplay_effect": "long stages remain recoverable"
+      },
+      {
+        "source_system": "RuleSystem",
+        "target_system": "StageSystem",
+        "data_flow": "data-configured phase mutation",
+        "event_flow": "PHASE_MODIFIED",
+        "state_change": "next phase pressure / rewards",
+        "gameplay_effect": "mutators alter economy and counter coverage without code branches"
+      }
+    ],
+    "closed_loops": [
+      "place -> spend -> attack -> defeat -> earn -> expand",
+      "scout -> counter -> target -> leak avoided -> mastery",
+      "phase clear -> choice -> modifier -> altered defense -> new threat response"
+    ],
+    "emergent_chains": [
+      "slow + clustered fast units + area attack -> high efficiency but weak coverage of shielded targets",
+      "armor + rapid small hits -> low throughput -> specialist damage choice gains value",
+      "support aura + range bonus + choke placement -> overlap-driven build optimization",
+      "leak threshold + optional high-reward phase -> risk/reward route choice"
+    ]
+  },
+  "state_model": {
+    "engine_state": [
+      "loading",
+      "ready",
+      "error",
+      "shutdown"
+    ],
+    "runtime_state": [
+      "fixed clock",
+      "system scheduler",
+      "registries",
+      "diagnostics"
+    ],
+    "session_state": [
+      "screen",
+      "paused",
+      "stage ID",
+      "run seed",
+      "elapsed time"
+    ],
+    "world_state": [
+      "entities",
+      "components",
+      "map",
+      "routes",
+      "phase FSM"
+    ],
+    "player_state": [
+      "resources",
+      "lives",
+      "build selection",
+      "target priorities"
+    ],
+    "progression_state": [
+      "stage graph position",
+      "phase index",
+      "objective status",
+      "checkpoint"
+    ],
+    "meta_state": [
+      "unlock currency",
+      "unlocks",
+      "achievements",
+      "records"
+    ],
+    "persistent_state": [
+      "versioned user settings and progression save"
+    ],
+    "derived_state": [
+      "target candidates",
+      "range indicators",
+      "HUD view model"
+    ],
+    "presentation_state": [
+      "Phaser objects",
+      "camera",
+      "tweens",
+      "audio voices",
+      "UI state"
+    ],
+    "separation_rule": "Content definitions are immutable config; components are runtime state; save snapshots are explicit projections; Phaser objects and caches are disposable derived presentation."
+  },
+  "entity_model": {
+    "identity": "Numeric runtime ID plus component membership only.",
+    "archetypes": "GAME_DATA.entities contains reusable component bundles; instances are composed at load/spawn time.",
+    "runtime_composition": "Add/remove components through World API; emit ENTITY_CREATED / ENTITY_DESTROYED; pooled presentation objects do not preserve gameplay identity.",
+    "decorative_isolation": "Decorative instances are presentation-only records in a separate registry and never receive gameplay ECS IDs, Collider, AI/FSM, or RuleSystem eligibility."
+  },
+  "component_model": {
+    "base_components": {
+      "Transform": {
+        "x": "number",
+        "y": "number",
+        "rotation": "number"
+      },
+      "Sprite": {
+        "asset_id": "string?",
+        "shape": "string?",
+        "color": "palette key?",
+        "scale": "number"
+      },
+      "Collider": {
+        "radius": "number",
+        "body_type": "arcade static|dynamic"
+      },
+      "Health": {
+        "current": "number",
+        "maximum": "number",
+        "armor": "number?",
+        "shields": "array?"
+      },
+      "Velocity": {
+        "speed": "number"
+      }
+    },
+    "gameplay_components": {
+      "PathFollower": {
+        "route_id": "string",
+        "segment_index": "integer",
+        "distance": "number",
+        "state": "FSM state ID"
+      },
+      "Tower": {
+        "cost": "number",
+        "upgrade_paths": "array",
+        "level": "integer",
+        "sell_refund_ratio": "number"
+      },
+      "Targeting": {
+        "range": "number",
+        "priority_order": "array of target priority IDs",
+        "target_id": "entity ID|null",
+        "requires_los": "boolean"
+      },
+      "Attack": {
+        "damage": "number",
+        "damage_type": "string",
+        "cooldown": "number",
+        "projectile_id": "string",
+        "splash_radius": "number",
+        "status_effects": "array"
+      },
+      "Projectile": {
+        "target_id": "entity ID",
+        "speed": "number",
+        "payload": "data object",
+        "lifetime": "number"
+      },
+      "Economy": {
+        "balances": "resource ID to number",
+        "capacity": "resource ID to number"
+      },
+      "FSM": {
+        "graph_id": "string",
+        "state_id": "string",
+        "entered_at": "number"
+      },
+      "Objective": {
+        "objective_id": "string",
+        "progress": "data object",
+        "status": "active|complete|failed"
+      },
+      "ModifierSet": {
+        "modifier_ids": "array"
+      },
+      "GridAnchor": {
+        "row": "integer",
+        "col": "integer",
+        "occupied": "boolean"
+      }
+    },
+    "composition_validation": "Unknown component IDs are diagnostics, not fatal exceptions; required component sets are checked against the declared entity archetype schema."
+  },
+  "content_domains": [
+    "theme",
+    "lore",
+    "entities",
+    "progression",
+    "rules",
+    "modifiers",
+    "objectives",
+    "economy",
+    "rewards",
+    "assets",
+    "localization",
+    "difficulty",
+    "platform"
+  ],
+  "game_data_schema": {
+    "required_root_fields": [
+      "theme",
+      "entities",
+      "progression"
+    ],
+    "optional_root_fields": [
+      "lore",
+      "assets",
+      "rules",
+      "modifiers",
+      "objectives",
+      "economy",
+      "rewards",
+      "localization",
+      "difficulty",
+      "platform"
+    ],
+    "theme": {
+      "required": [
+        "palette",
+        "texts",
+        "font",
+        "audio",
+        "save_key"
+      ],
+      "palette": "named color map",
+      "texts": "localization key map; values may be strings or plural forms",
+      "font": "font asset ID or CSS family",
+      "audio": "master/music/sfx channels and event-to-asset mapping",
+      "save_key": "namespaced string"
+    },
+    "lore": {
+      "required": [
+        "world_summary",
+        "tone",
+        "factions_or_contexts",
+        "key_concepts"
+      ],
+      "type": "data-only setting metadata; engine never branches on lore"
+    },
+    "entities": {
+      "required": [
+        "player_or_core_agent",
+        "opposing_or_active_forces",
+        "player_tools_or_actions",
+        "environment_or_context_entities"
+      ],
+      "entity_definition": {
+        "entity_id": "unique string",
+        "components": "component ID -> plain data object",
+        "tags": "string array",
+        "animation_class": "string; required",
+        "interaction_class": "string; required",
+        "localization_key": "string refs only; no embedded display copy"
+      },
+      "minimum_archetypes": {
+        "opposing_or_active_forces": 4,
+        "player_tools_or_actions": 3,
+        "modifier_effects": 8,
+        "context_sets": 3
+      }
+    },
+    "assets": {
+      "required": [
+        "images",
+        "audio",
+        "animations",
+        "fonts",
+        "effects",
+        "placeholders"
+      ],
+      "manifest_entry": {
+        "asset_id": "unique string",
+        "type": "image|sprite|icon|background|animation|audio|music|font|effect|particle",
+        "src": "relative path or URL",
+        "fallback": "placeholder ID",
+        "palette_roles": "optional allowed roles"
+      }
+    },
+    "references": "Every entity, asset, localization key, rule, modifier, objective, stage, phase and progression edge reference resolves or is reported with safe fallback."
+  },
+  "data_requirements": {
+    "theme_json": [
+      "palette",
+      "texts",
+      "font",
+      "audio",
+      "save_key"
+    ],
+    "lore_json": [
+      "world_summary",
+      "tone",
+      "factions_or_contexts",
+      "key_concepts"
+    ],
+    "entities_json": [
+      "player_or_core_agent",
+      "opposing_or_active_forces",
+      "player_tools_or_actions",
+      "environment_or_context_entities"
+    ],
+    "entity_required_animation_fields": {
+      "animation_class": "string (anim-idle|anim-hover|anim-interact|anim-destroy|none or registered extension)",
+      "interaction_class": "string (tween or registered interaction ID)"
+    },
+    "asset_spec_json": [
+      "images",
+      "audio",
+      "animations",
+      "fonts",
+      "effects",
+      "placeholders"
+    ],
+    "progression_json": [
+      "stages_or_levels",
+      "density_metrics",
+      "choice_pool",
+      "achievements",
+      "tutorial",
+      "meta_upgrades",
+      "difficulty_overrides"
+    ],
+    "gameplay_entity_instance": {
+      "entity_id": "reference",
+      "instance_count": "integer >= 1",
+      "entity_category": "gameplay",
+      "row": "integer",
+      "col": "integer",
+      "spawn_offset": "optional normalized vector"
+    },
+    "decorative_instance": {
+      "entity_id": "reference",
+      "instance_count": "integer >= 1",
+      "render_layer": "background_far|background_mid|background_near|foreground",
+      "z_index": "integer",
+      "has_collision": false,
+      "parallax_factor": "number 0..1",
+      "row": "integer|null",
+      "col": "integer|null",
+      "x": "number|null normalized free position",
+      "y": "number|null normalized free position"
+    },
+    "micro_phase_required_fields": [
+      "micro_level_id",
+      "sequence_index",
+      "phase",
+      "objective",
+      "world_or_board",
+      "spatial_extent",
+      "entities_in_zone",
+      "decorative_layout",
+      "route",
+      "spawn_plan",
+      "entry_conditions",
+      "transition_conditions"
+    ],
+    "stage_required_fields": [
+      "stage_id",
+      "difficulty_curve",
+      "micro_phases",
+      "checkpoint_policy",
+      "density_metrics"
+    ]
+  },
+  "rendering": {
+    "architecture": "GAMEPLAY STATE -> PRESENTATION SNAPSHOT -> Phaser Render Adapter. Render methods cannot change gameplay rules.",
+    "render_layers": [
+      {
+        "id": "LAYER_BACKGROUND",
+        "z": -100,
+        "has_collision": false,
+        "parallax": true
+      },
+      {
+        "id": "LAYER_GAMEPLAY",
+        "z": 0,
+        "has_collision": true,
+        "parallax": false
+      },
+      {
+        "id": "LAYER_FOREGROUND",
+        "z": 100,
+        "has_collision": false,
+        "parallax": false
+      },
+      {
+        "id": "LAYER_UI",
+        "z": 1000,
+        "has_collision": false,
+        "parallax": false
+      }
+    ],
+    "layer_rules": "Collision and physics eligibility is restricted to LAYER_GAMEPLAY. Background and foreground layers cannot be reassigned to gameplay through data.",
+    "visual_coherence_protocol": {
+      "strict_palette_locking": "All palette-role-tagged assets resolve to theme.palette; invalid colors are diagnosed and mapped to a safe role fallback.",
+      "grid_snapping": "Gameplay buildable positions snap to one data-defined board grid.",
+      "strict_layer_separation": "Level data separates entities_in_zone from decorative_layout; no decorative records in gameplay lists.",
+      "zero_logic_decorations": "Anything loaded from decorative_layout is render-only and excluded from colliders, pathfinding, AI, Rule Engine, placement and ECS gameplay queries."
+    },
+    "decorative_layout_support": {
+      "read_per_micro_phase": true,
+      "layers": {
+        "background_far": "LAYER_BACKGROUND",
+        "background_mid": "LAYER_BACKGROUND",
+        "background_near": "LAYER_BACKGROUND",
+        "foreground": "LAYER_FOREGROUND"
+      },
+      "sort": "z_index ascending within mapped layer",
+      "coordinates": "row/col grid placement OR row/col=null with normalized x/y free placement",
+      "instances": "Create instance_count independent display objects",
+      "parallax": "Apply camera delta times parallax_factor; clamp factor to 0..1",
+      "collision": "Force has_collision=false regardless of input; never create Arcade body",
+      "logic": "Separate presentation registry with no ECS gameplay identity; no rule/movement/AI/collision participation"
+    }
+  },
+  "audio": {
+    "channels": [
+      "master",
+      "music",
+      "sfx"
+    ],
+    "settings": [
+      "music volume and on/off",
+      "SFX volume and on/off"
+    ],
+    "frequent_event_variants": "At least two configured assets per frequent event; generated tone fallback uses deterministic choice and pitch jitter +/-5..10%.",
+    "adaptive_music": "At least two data-configured intensity states driven by threat density / objective integrity; crossfade without resetting playback position.",
+    "critical_resource": "When objective integrity or configured resource crosses its data-defined low threshold, emit a visual and audio warning with cooldown.",
+    "asset_free_fallback": "WebAudio oscillator/noise synthesized from technical envelopes; no copyrighted melody or hard-coded game sound identity.",
+    "unlock": "AudioContext starts/resumes only after user gesture; failures are diagnostics and never stop play."
+  },
+  "assets": {
+    "manifest": "GAME_DATA.assets or data/asset_spec.json; image, sprite, icon, background, animation, audio, music, font, effect and particle types.",
+    "loading": "Preload screen tracks each asset and validates response; missing / malformed assets create typed placeholders and diagnostics.",
+    "pooling": "Reuse projectile and particle display objects; release audio voices, textures and tweens on scene/session shutdown.",
+    "placeholders": "Procedural Phaser Graphics / text silhouettes derived from palette role and entity components."
+  },
+  "localization": {
+    "source": "GAME_DATA.localization plus theme.texts keys.",
+    "fallback_language": "Configured fallback locale, then key identifier with diagnostic.",
+    "interpolation": "Named parameters {value}; plural forms use locale category keys and count parameter.",
+    "user_facing_copy": "No user-facing content strings are hard-coded in engine. Technical identifiers and diagnostics may use stable codes."
+  },
+  "save": {
+    "storage": "localStorage namespace from theme.save_key; optional platform cloud adapter may mirror.",
+    "schema": "Versioned envelope {version, updated_at, checksum, settings, meta_state, checkpoint, last_good}.",
+    "serialization": "Explicit JSON-safe projections for meta and stage ECS state; exclude Phaser objects, caches, transient diagnostics and derived target candidates.",
+    "migration": "Ordered pure migration functions from older schema versions; unknown future version is preserved and recovery UI is shown.",
+    "autosave": "After settings changes, phase checkpoint, achievement, result and unlock transaction; debounced write for non-critical telemetry.",
+    "manual_save": "Menu and pause screens expose save action; checkpoint write is atomic from user perspective.",
+    "recovery": "Validate schema, checksum and IDs; recover last_good or safe defaults; report corruption with reset/export controls.",
+    "checkpoint": "Commit stage position, resources, objective state, tower builds/upgrades, alive opposition components, RNG state, modifiers and phase schedule at mid-stage boundaries."
+  },
+  "offline_progress": {
+    "active_combat": "Never advances offline.",
+    "background_accumulation": "Only content-declared production components may accrue; elapsed time is timestamped, capped, validated and anti-clock-rollback bounded.",
+    "rewards": "Offline rewards have a configured maximum duration and are delivered once through the normal reward pipeline."
+  },
+  "performance": {
+    "targets": {
+      "simulation_hz": 60,
+      "render_target_fps": 60,
+      "mobile_floor_fps": 30,
+      "entity_scale": "hundreds to low thousands of ECS entities with indexed queries and bounded per-frame work"
+    },
+    "hot_path": "No DOM reads, JSON clone, unbounded allocation or full registry scan in fixed update; queries use component indexes; event queues and diagnostics are bounded.",
+    "pooling": "Required for projectiles, impact particles, damage text and repeated short-lived wave entities.",
+    "culling": "Offscreen presentation objects are culled; gameplay simulation continues deterministically unless data configures an explicit sleeping policy.",
+    "quality": "Low / balanced / high effects modes alter particles, bloom-like accents and trails, never gameplay timing.",
+    "lifecycle": "Destroy scene-bound textures, sounds, tweens, event subscriptions and pooled objects on shutdown."
+  },
+  "platform_adapter": {
+    "interface": [
+      "gameplayStart()",
+      "gameplayStop()",
+      "rewardAd()",
+      "interstitialAd()",
+      "submitScore()",
+      "isAdAvailable()"
+    ],
+    "events": [
+      "AD_REQUESTED",
+      "AD_RESULT",
+      "PLATFORM_INITIALIZED",
+      "PLATFORM_ERROR"
+    ],
+    "fallback": "Safe local adapter resolves unavailable ads as unavailable, score submissions as locally stored, and start/stop calls as no-ops with diagnostics.",
+    "policy": "No ad interrupts a critical combat action; reward grants require explicit successful adapter result."
+  },
+  "validation": {
+    "stages": [
+      "root schema",
+      "required domains",
+      "field types and ranges",
+      "unique IDs",
+      "references and dependencies",
+      "asset fetch / placeholders",
+      "progression graph and micro-phase transitions",
+      "route reachability",
+      "build grid legality",
+      "decorative layer and collision guarantees",
+      "save version and checksum",
+      "runtime assertions"
+    ],
+    "errors": [
+      "source",
+      "category",
+      "severity",
+      "context",
+      "recovery_behavior"
+    ],
+    "safe_defaults": "Invalid optional data is replaced with typed defaults; invalid required play data blocks launch with visible diagnostics and retry / export routes.",
+    "debug": "URL ?debug=1 enables diagnostics panel, system timing, entity queries and event trace.",
+    "failure_policy": "Never fail silently; catch top-level runtime exceptions and transition to recoverable error overlay."
+  },
+  "testing": {
+    "test_harness": "Built-in deterministic harness exposed through ?debug=1 and window.EngineTestHarness.",
+    "required_suites": [
+      "engine initialization",
+      "GAME_DATA validation",
+      "ECS create/add/remove/query",
+      "system execution and lifecycle",
+      "FSM transitions",
+      "sync and deferred event delivery",
+      "conditions and effects",
+      "modifier stack order / caps / expiry",
+      "placement economy and grid legality",
+      "route movement and leak",
+      "target acquisition and damage",
+      "phase progression and choices",
+      "objectives and rewards",
+      "achievements",
+      "checkpoint save / load / recovery",
+      "asset fallback",
+      "UI state changes",
+      "platform adapter fallback",
+      "decorative layout rendering / parallax / no-collision",
+      "minimal, empty and corrupted data",
+      "content swap",
+      "theme swap",
+      "seed reproducibility",
+      "mobile resize"
+    ],
+    "synthetic_data": "Test-only, theme-free GAME_DATA is generated at harness runtime, includes 4 opposition archetypes, 3 tools, 8 modifiers, 3 contexts and one phase with 3 decorative records using different render layers and parallax factors.",
+    "quality_evidence": "Each test reports TEST_ID, purpose, input, expected, actual, status and evidence in the debug panel and console; synthetic content is not bundled as shipped game content.",
+    "traceability": "DESIGN_ID -> spec entry -> runtime module / registry -> TEST_ID; index mapping is carried in this contract and the final response."
+  },
+  "accessibility": {
+    "requirements": [
+      "keyboard-operable UI",
+      "touch target sizing",
+      "reduced motion setting",
+      "high contrast palette roles",
+      "screen reader labels for DOM controls",
+      "danger expressed by icon / shape as well as color",
+      "volume controls",
+      "pause while unfocused"
+    ],
+    "localization": "Text expansion and right-to-left layout direction are data-driven; board remains centered while controls reflow."
+  },
+  "engine_registries": [
+    "systems",
+    "components",
+    "entity archetypes",
+    "rules",
+    "conditions",
+    "effects",
+    "events",
+    "content",
+    "assets",
+    "UI modules",
+    "localization",
+    "platform adapters"
+  ],
+  "engine_config_vs_game_data": {
+    "ENGINE_CONFIG": [
+      "debug",
+      "render",
+      "performance",
+      "input",
+      "save",
+      "platform",
+      "diagnostics"
+    ],
+    "GAME_DATA": [
+      "gameplay",
+      "content",
+      "balance",
+      "progression",
+      "economy",
+      "entities",
+      "rules",
+      "assets",
+      "localization"
+    ],
+    "separation": "No theme, level, named entity, resource, enemy, tower, reward or balance constant appears in ENGINE_CONFIG or executable source."
+  },
+  "traceability": [
+    {
+      "design_id": "TD-CORE-ECS",
+      "spec_entry": "core_architecture.entity_component_model",
+      "runtime_module": "World / SystemRegistry / component stores",
+      "test_id": "ECS-01"
+    },
+    {
+      "design_id": "TD-CORE-EVENT",
+      "spec_entry": "core_architecture.event_bus",
+      "runtime_module": "EventBus",
+      "test_id": "EVENT-01"
+    },
+    {
+      "design_id": "TD-CORE-RULE",
+      "spec_entry": "rules / conditions / effects",
+      "runtime_module": "RuleSystem / registries",
+      "test_id": "RULE-01"
+    },
+    {
+      "design_id": "TD-CORE-MOD",
+      "spec_entry": "modifier_system",
+      "runtime_module": "ModifierStack",
+      "test_id": "MOD-01"
+    },
+    {
+      "design_id": "TD-PHASE-DENSITY",
+      "spec_entry": "progression.density_metrics",
+      "runtime_module": "StageSystem / progression validator",
+      "test_id": "PHASE-01"
+    },
+    {
+      "design_id": "TD-PLACEMENT",
+      "spec_entry": "systems[PlacementSystem]",
+      "runtime_module": "PlacementSystem / EconomySystem",
+      "test_id": "PLACE-01"
+    },
+    {
+      "design_id": "TD-COMBAT",
+      "spec_entry": "systems[TargetingSystem, AttackSystem, ProjectileSystem, DamageSystem]",
+      "runtime_module": "TargetSystem / AttackSystem / ProjectileSystem / DamageSystem",
+      "test_id": "COMBAT-01"
+    },
+    {
+      "design_id": "TD-CHECKPOINT",
+      "spec_entry": "progression.mid_stage_checkpointing / save",
+      "runtime_module": "CheckpointSystem / SaveSystem",
+      "test_id": "SAVE-02"
+    },
+    {
+      "design_id": "TD-DECOR",
+      "spec_entry": "progression.decorative_layout_runtime / rendering.decorative_layout_support",
+      "runtime_module": "PresentationAdapter.loadDecorative",
+      "test_id": "RENDER-DECOR-01"
+    },
+    {
+      "design_id": "TD-JUICE",
+      "spec_entry": "core_architecture.micro_animation_system / audio",
+      "runtime_module": "PhaserAdapter tweens / AudioBus",
+      "test_id": "PRESENT-01"
+    }
+  ],
+  "quality_gates": {
+    "required_audits": [
+      "genre and references",
+      "gameplay depth",
+      "density and checkpoints",
+      "system interaction",
+      "content and theme swap",
+      "hard-code audit",
+      "spec-code audit",
+      "anti-fake-data",
+      "anti-generic-engine",
+      "architecture 7-layer compliance",
+      "decorative_layout runtime audit",
+      "anti-primitive logic",
+      "responsive and accessibility",
+      "performance and save recovery"
+    ],
+    "pass_definition": "All critical runtime harness tests pass; data validation is visible and recoverable; supported features match code; unsupported future content features are not claimed as implemented.",
+    "known_boundary": "The engine is factory-ready but not a standalone authored game until external theme, entities, stage and progression GAME_DATA are supplied."
+  },
+  "AI": {
+    "model": "Data-defined finite state machine; behavior logic uses registered transition conditions and effects, never boolean AI flags.",
+    "minimum_states": [
+      "idle",
+      "active",
+      "escalate",
+      "resolve",
+      "done"
+    ],
+    "state_graph_schema": {
+      "graph_id": "string",
+      "initial_state": "state ID",
+      "states": "state ID -> duration, tags, allowed component effects",
+      "transitions": "from, to, condition_id, priority, effect IDs"
+    },
+    "archetype_behavior": "Every opposing archetype declares its own FSM graph and tags; speed, shielding, flying, armor, stealth, splitting and support are expressed as components/tags/rules, not entity-type branches.",
+    "built_in_runtime": "Generic FSMSystem evaluates registered conditions and emits FSM_TRANSITIONED; route movement and attacks query state IDs."
+  },
+  "simulation": {
+    "model": "Discrete-wave tactical simulation with continuous fixed-step route movement and attack resolution.",
+    "loop": [
+      "INPUT",
+      "SIMULATION",
+      "STATE_TRANSITION",
+      "CONSEQUENCE",
+      "FEEDBACK"
+    ],
+    "world_state": [
+      "route graph",
+      "build grid",
+      "entities and component state",
+      "phase schedule",
+      "resources",
+      "objectives",
+      "seed"
+    ],
+    "emergent_interactions": [
+      "route coverage x tower range x target priority",
+      "enemy resistance x damage type x attack cadence",
+      "support radius x build position x modifiers",
+      "resource timing x phase rewards x future counter needs"
+    ]
+  },
+  "procedural_generation": {
+    "seed": "Stored with stage and checkpoint for reproducible wave variants.",
+    "generator_contract": [
+      "seed",
+      "generator_id",
+      "constraints",
+      "difficulty target",
+      "validation report"
+    ],
+    "constraints": [
+      "route connected from entry to exit",
+      "valid build cells exist across route coverage zones",
+      "each required counter has at least one legal answer",
+      "spawn budget fits phase density target",
+      "decorative references and palette roles resolve"
+    ],
+    "reproducibility": "Same seed + content version + generator version yields the same generated topology and spawn schedule.",
+    "validation": "Generated layouts are validated before becoming active; invalid results fall back to last valid authored template and emit diagnostics."
+  },
+  "difficulty": {
+    "dimensions": [
+      "movement speed",
+      "spawn density",
+      "enemy role composition",
+      "route branching",
+      "resource scarcity",
+      "objective integrity",
+      "time pressure",
+      "target complexity",
+      "counter requirement",
+      "choice pressure"
+    ],
+    "curves": [
+      "linear",
+      "exponential",
+      "logistic",
+      "stepped",
+      "polynomial",
+      "soft-cap",
+      "hard-cap",
+      "diminishing-return"
+    ],
+    "adaptation": "Data-defined curve and optional performance band adjust future phases; never use HP multiplication as the only difficulty control.",
+    "telemetry": "Record attempts, leaks, build diversity, phase time and objective failures locally for transparent, opt-in adaptation."
+  },
+  "rewards": {
+    "pipeline": [
+      "SOURCE",
+      "ELIGIBILITY",
+      "CALCULATION",
+      "DELIVERY",
+      "FEEDBACK",
+      "PERSISTENCE"
+    ],
+    "types": [
+      "currency",
+      "items",
+      "unlock",
+      "XP",
+      "progression",
+      "abilities",
+      "content",
+      "mastery",
+      "collection",
+      "information",
+      "access"
+    ],
+    "anti-duplication": "Event ID and reward ID idempotency keys prevent duplicate delivery after resume.",
+    "ad_reward": "Only via platform adapter result; unavailable or failed ads grant no unearned reward and never block progression."
+  },
+  "objectives": {
+    "framework": {
+      "objective_id": "unique ID",
+      "requirements": "all/any/count/value predicates",
+      "progress": "event-derived counters or values",
+      "completion": "condition list",
+      "failure": "condition list",
+      "reward": "reward references",
+      "chain": "objective IDs",
+      "dependencies": "unlock predicates"
+    },
+    "supported_types": [
+      "survive_phase",
+      "leak_limit",
+      "defeat_tagged_count",
+      "resource_cap",
+      "build_role_count",
+      "coverage_constraint",
+      "time_limit",
+      "no_sell",
+      "branch_chain",
+      "score_threshold"
+    ],
+    "evaluation": "Event-sourced progress is serializable and can resume mid-stage."
+  },
+  "achievements": {
+    "source": "GAME_DATA.progression.achievements",
+    "minimum_count": 8,
+    "schema": [
+      "achievement_id",
+      "localization_key",
+      "event_id",
+      "conditions",
+      "target",
+      "prerequisites",
+      "reward",
+      "hidden",
+      "repeat_policy"
+    ],
+    "evaluation": "Event-driven counters and state predicates; unlocks persist and emit ACHIEVEMENT_UNLOCKED."
+  },
+  "replayability": {
+    "pillars": [
+      "seeded spawn variation",
+      "branching tower upgrades",
+      "three or more map contexts",
+      "objective variants",
+      "difficulty mutators",
+      "score and mastery records",
+      "challenge constraints"
+    ],
+    "content_swap": "Different GAME_DATA sets alter routes, towers, art, language, objectives, economy and progression without changing engine logic.",
+    "theme_swap": "Theme, lore, palette, assets and localized copy are external data only."
+  },
+  "endgame": {
+    "modes": [
+      "mastery tiers",
+      "seeded challenge stages",
+      "endless wave scaling",
+      "mutator combinations",
+      "score records",
+      "build restrictions",
+      "collection completion"
+    ],
+    "scaling": "Data-defined stepped/logistic/soft-cap curves and pressure composition; no fixed named content in runtime.",
+    "record_scope": "Local best score, fastest stage, fewest leaks, build diversity and challenge clears."
+  },
+  "UI": {
+    "model": "GAME STATE -> PRESENTATION STATE -> UI; UI emits abstract commands, never mutates gameplay components directly.",
+    "responsive": "Phaser Scale.FIT equivalent, safe-area insets, pointer/touch and keyboard parity, board framing on resize.",
+    "accessibility": [
+      "reduced motion",
+      "high contrast palette roles",
+      "scalable UI",
+      "keyboard focus",
+      "non-color danger indicators",
+      "audio toggles"
+    ],
+    "animation": "HUD deltas tween from old to new values; menus and choice cards enter/exit smoothly; motion respects effects quality."
+  },
+  "screens": [
+    {
+      "id": "data_loading",
+      "category": "loading / validation",
+      "purpose": "Show progress, diagnostics and recovery actions."
+    },
+    {
+      "id": "asset_preload",
+      "category": "asset preload / placeholders",
+      "purpose": "Resolve manifest and generate accessible placeholders."
+    },
+    {
+      "id": "main_menu",
+      "category": "menu",
+      "purpose": "Continue, stage selection, mastery, settings and onboarding access."
+    },
+    {
+      "id": "gameplay_hud",
+      "category": "gameplay",
+      "purpose": "Board, route, build palette, wave state, objective integrity, currency and threat feedback."
+    },
+    {
+      "id": "pause_settings",
+      "category": "pause / equivalent",
+      "purpose": "Freeze simulation, restore, settings, quit and save controls."
+    },
+    {
+      "id": "choice",
+      "category": "genre choice",
+      "purpose": "Present 1-of-N upgrade / risk / economy decisions at phase gates."
+    },
+    {
+      "id": "session_result",
+      "category": "result",
+      "purpose": "Summarize goals, leaks, rewards, mastery, achievements and next step."
+    },
+    {
+      "id": "meta_progression",
+      "category": "meta",
+      "purpose": "Spend unlock currency, inspect progression graph and records."
+    }
+  ],
+  "onboarding": {
+    "required": "First seconds teach inspect route, place a defense, launch/advance a wave and read the primary objective.",
+    "data_source": "GAME_DATA.progression.tutorial",
+    "step_schema": [
+      "step_id",
+      "localization_key",
+      "command_or_event",
+      "completion_condition",
+      "highlight_target",
+      "recovery_hint_key"
+    ],
+    "completion": "Persist tutorial step and completion; do not block input beyond a data-defined guided step."
+  },
+  "settings": {
+    "required": [
+      "music_volume",
+      "music_enabled",
+      "sfx_volume",
+      "sfx_enabled",
+      "effects_quality",
+      "language when localized"
+    ],
+    "persistence": "Versioned local settings under theme.save_key namespace.",
+    "effects_quality_values": [
+      "low",
+      "balanced",
+      "high"
+    ],
+    "live_apply": true
+  },
+  "input": {
+    "abstract_commands": [
+      "select_build",
+      "place_build",
+      "select_entity",
+      "upgrade",
+      "sell",
+      "set_target_priority",
+      "activate_ability",
+      "launch_phase",
+      "pause",
+      "confirm_choice",
+      "navigate_ui"
+    ],
+    "devices": [
+      "keyboard",
+      "mouse",
+      "pointer",
+      "touch",
+      "gamepad"
+    ],
+    "mapping": "Hardware events are normalized by InputAdapter; systems consume commands via EventBus.",
+    "touch": "Large hit targets, drag placement preview, pinch/zoom optional, no hover-only affordance."
+  }
+}
