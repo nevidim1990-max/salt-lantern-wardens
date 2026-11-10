@@ -48,6 +48,14 @@
     'ui.postgame.replay': 'Сыграть ещё раз', 'ui.levels': 'Участки', 'ui.tutorial.skip': 'Пропустить'
   };
 
+  function playerFacingMechanic(value) {
+    const text = String(value || '').replace(/^(?:base|test|combine):\s*/i, '').trim();
+    if (text.includes('mech_tide_sluice') && text.includes('mech_lantern_lens')) return 'Открой шлюз и настрой линзы, чтобы управлять приливом.';
+    if (text.includes('mech_tide_sluice')) return 'Открой боковой шлюз и измени маршрут прилива.';
+    if (text.includes('mech_lantern_lens')) return 'Настрой линзы маяков и выбери подходящую цель.';
+    return text ? text[0].toLocaleUpperCase('ru-RU') + text.slice(1) : 'Удержи сигнальную цепь.';
+  }
+
   const towerStats = {
     e_001: [38, 0.29, 0.92, 45], e_002: [62, 0.18, 0.72, 55],
     e_003: [27, 0.24, 0.82, 60], e_004: [52, 0.21, 0.68, 65],
@@ -124,7 +132,7 @@
       const stageKey = `stage.${macroIndex + 1}`;
       const title = micros[0]?.title?.split(':')[0] || `Участок ${macroIndex + 1}`;
       texts[stageKey] = title;
-      texts[`${stageKey}.summary`] = macro.introduced_mechanic || micros[0]?.objective || 'Новый прилив приближается.';
+      texts[`${stageKey}.summary`] = playerFacingMechanic(macro.introduced_mechanic || micros[0]?.objective || 'Новый прилив приближается.');
       const macroEnemies = (macro.entity_ids || []).filter(id => byId.get(id)?.type === 'PathFollower');
       const towerIds = new Set(defs.player_tools_or_actions.map(item => item.entity_id));
       const coreId = 'e_022';

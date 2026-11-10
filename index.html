@@ -19,6 +19,49 @@
     .tiny.muted{position:absolute;left:calc(12px + var(--safe-left));bottom:calc(12px + var(--safe-bottom))}
     @media(max-width:680px){.toolbar{max-width:100%}.tiny.muted{display:none}}
   </style>
+  <style>
+    html,body{touch-action:auto}
+    button{touch-action:manipulation}
+    .dialog{touch-action:pan-y}
+    #ui{justify-content:flex-start}
+    #ui>.topbar{order:0}
+    #ui>.panel{order:1;margin-top:auto}
+    #ui>.bottom-bar{order:2;margin-top:auto}
+    #ui:has(>.panel)>.bottom-bar{margin-top:8px}
+    #ui>.tiny{order:3}
+    #ui>.tiny.muted{display:none}
+    .topbar{display:grid;grid-template-columns:minmax(180px,auto) minmax(0,1fr);gap:8px;align-items:start}
+    .brand{max-width:100%}
+    .hud{min-width:0;justify-content:flex-end}
+    .stage-card{position:relative;text-align:left;min-height:112px;padding:14px 16px 42px}
+    .stage-card strong,.stage-card small{display:block}
+    .stage-card small{margin-top:6px;line-height:1.35}
+    .stage-launch-hint{position:absolute;right:14px;bottom:12px;color:var(--accent);font-size:.82rem;font-weight:750}
+    @media(max-width:720px){
+      #ui{padding:calc(8px + var(--safe-top)) calc(8px + var(--safe-right)) calc(8px + var(--safe-bottom)) calc(8px + var(--safe-left));gap:6px;justify-content:space-between}
+      .topbar{grid-template-columns:minmax(0,1fr);gap:6px}
+      .brand{width:max-content;max-width:100%;font-size:.82rem;padding:7px 10px}
+      .hud{width:100%;justify-content:space-between;gap:5px 9px;padding:7px 9px;font-size:.76rem}
+      .hud>span:first-child{flex:0 0 100%;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      #ui>.bottom-bar{display:grid;grid-template-columns:minmax(0,1fr);width:100%;gap:6px;align-items:stretch;margin-top:auto}
+      #ui>.bottom-bar>.toolbar{width:100%;max-width:none;min-width:0}
+      #ui>.bottom-bar>.toolbar:first-child{overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;touch-action:pan-x}
+      #ui>.bottom-bar>.toolbar:first-child .card{flex:0 0 116px;min-width:116px;max-width:116px;scroll-snap-align:start}
+      #ui>.bottom-bar>.toolbar:last-child{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;overflow:visible}
+      #ui>.bottom-bar>.toolbar:last-child button{min-width:0;min-height:44px;padding:.55rem .35rem;font-size:.76rem;line-height:1.15;white-space:normal}
+      #ui>.bottom-bar>.panel{max-width:100%;max-height:22vh}
+      .overlay{padding:calc(8px + var(--safe-top)) calc(8px + var(--safe-right)) calc(8px + var(--safe-bottom)) calc(8px + var(--safe-left))}
+      .dialog{width:100%;max-height:100%;padding:16px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+      .stage-grid,.choice-grid{grid-template-columns:minmax(0,1fr);gap:8px}
+      .stage-card{min-height:100px;padding:12px 14px 38px}
+      .stage-card .tag{font-size:.68rem}
+      .stage-card strong{font-size:1rem}
+      .stage-card small{font-size:.82rem}
+      .dialog .actions{position:sticky;bottom:-16px;padding:8px 0;background:linear-gradient(transparent,var(--panel) 30%);z-index:1}
+      .tiny.muted{display:none}
+    }
+    @media(max-width:380px){.hud{font-size:.7rem;gap:4px 6px}.stage-card{padding-inline:11px}}
+  </style>
   <script src="phaser.min.js"></script>
   <script src="game_data.js"></script>
   <script src="runtime-data.js"></script>
@@ -406,17 +449,16 @@ return Object.keys(result).length?result:null}
       if(screen==='about')this.overlay.innerHTML=`<section class="overlay"><div class="dialog"><span class="tag">ОБ ИГРЕ</span><h2>${title}</h2><p>${escapeHTML(this.s.data.theme.onboarding_text||'')}</p><div class="actions"><button class="primary" data-action="about-back">Назад</button></div></div></section>`;
       if(screen==='narrative'){
         const stage=this.s.data.progression.stages_or_levels[this.s.state.pendingStageIndex||0];
-        const summary=stage?.source_macro?.narrative_summary||stage?.source_macro?.introduced_mechanic||stage?.expansion_hook||'';
-        this.overlay.innerHTML=`<section class="overlay"><div class="dialog intro-screen"><span class="tag">НОВАЯ СТОЯНКА</span><h2>${this.t(stage?.title_key||'ui.stage.untitled')}</h2><p>${escapeHTML(summary)}</p><div class="actions"><button class="primary" data-action="begin-stage">Продолжить к обороне</button></div></div></section>`;
+        const summary=this.t(stage?.summary_key||'ui.stage.summary');
+        this.overlay.innerHTML=`<section class="overlay"><div class="dialog intro-screen"><span class="tag">НОВАЯ СТОЯНКА</span><h2>${this.t(stage?.title_key||'ui.stage.untitled')}</h2><p>${summary}</p><div class="actions"><button class="primary" data-action="begin-stage">Продолжить к обороне</button></div></div></section>`;
         if(!this.s.state.narrativeTimer){this.s.state.narrativeTimer=setTimeout(()=>{if(this.s.state.screen==='narrative')beginStage(this.s.state.pendingStageIndex||0)},3600)}
       }
       if(screen==='postgame')this.overlay.innerHTML=`<section class="overlay"><div class="dialog title-screen"><span class="title-mark">✦</span><span class="tag">${this.t('ui.postgame')}</span><h1>Свет вернулся на горизонт</h1><p>${escapeHTML(this.s.data.lore?.viral_hook||this.s.data.theme.viral_hook||this.t('ui.postgame.copy'))}</p><div class="actions" style="justify-content:center"><button class="primary" data-action="postgame-replay">${this.t('ui.postgame.replay')}</button><button data-action="title-levels">${this.t('ui.levels')}</button></div></div></section>`;
     };
     UIController.prototype.renderMenu=function(){
-      const stages=this.s.data.progression.stages_or_levels||[],selected=Number.isInteger(this.s.state.selectedStageIndex)?this.s.state.selectedStageIndex:null;
-      const cards=stages.map((stage,i)=>`<button class="choice-card ${selected===i?'selected':''}" data-action="select-stage" data-stage="${i}"><span class="tag">УЧАСТОК ${String(i+1).padStart(2,'0')}</span><strong>${this.t(stage.title_key)}</strong><small>${this.t(stage.summary_key)}</small></button>`).join('');
-      const detail=selected===null?'':(()=>{const stage=stages[selected];return `<div class="stage-detail"><b>${this.t(stage.title_key)}</b><p><strong>Цель:</strong> ${escapeHTML(stage.progression_goals?.[0]||stage.source_macro?.exit_conditions||'Удержать сигнальную цепь.')}</p><p><strong>Дальше:</strong> ${escapeHTML(stage.expansion_hook||'Новый маршрут прилива.')}</p><button class="primary" data-action="start-selected">Начать оборону</button></div>`})();
-      this.overlay.innerHTML=`<section class="overlay"><div class="dialog"><div class="topbar"><div><span class="tag">${this.t('ui.runtime.tag')}</span><h1>${this.t('ui.menu.title')}</h1></div>${this.button('ui.back','title-levels')}</div><p>${this.t('ui.menu.subtitle')}</p>${detail}<div class="stage-grid">${cards}</div><div class="actions">${this.button('ui.settings.title','settings')}${this.button('ui.about','about')}</div></div></section>`;
+      const stages=this.s.data.progression.stages_or_levels||[];
+      const cards=stages.map((stage,i)=>`<button class="choice-card stage-card" data-action="start-stage" data-stage="${i}" aria-label="Начать участок ${i+1}: ${this.t(stage.title_key)}"><span class="tag">УЧАСТОК ${String(i+1).padStart(2,'0')}</span><strong>${this.t(stage.title_key)}</strong><small>${this.t(stage.summary_key)}</small><span class="stage-launch-hint">Начать <span aria-hidden="true">→</span></span></button>`).join('');
+      this.overlay.innerHTML=`<section class="overlay"><div class="dialog"><div class="topbar"><div><span class="tag">${this.t('ui.runtime.tag')}</span><h1>${this.t('ui.menu.title')}</h1></div>${this.button('ui.back','title-back')}</div><p>${this.t('ui.menu.subtitle')}</p><div class="stage-grid">${cards}</div><div class="actions">${this.button('ui.settings.title','settings')}${this.button('ui.about','about')}</div></div></section>`;
     };
     UIController.prototype.renderPause=function(){
       this.overlay.innerHTML=`<section class="overlay"><div class="dialog"><div class="topbar"><span class="tag">${this.t('ui.pause.tag')}</span><button class="icon-button" data-action="toggle-mute">${this.s.audio.muted?'🔇':'🔊'}</button></div><h2>${this.t('ui.pause.title')}</h2><p>${this.t('ui.pause.description')}</p><div class="actions"><button class="primary" data-action="resume">${this.t('ui.resume')}</button><button data-action="settings">${this.t('ui.settings.title')}</button><button data-action="save-now">${this.t('ui.save')}</button><button class="danger" data-action="menu">${this.t('ui.menu.title')}</button></div></div></section>`;
@@ -471,10 +513,12 @@ return Object.keys(result).length?result:null}
       if(action==='splash-title'){state.screen='title';ui.render()}
       else if(action==='title-play'){if(state.meta.intro_seen){state.screen='menu';ui.render()}else{state.screen='intro';ui.render()}}
       else if(action==='title-levels'){state.screen='menu';ui.render()}
+      else if(action==='title-back'){state.screen='title';ui.render()}
       else if(action==='about'){state.returnTitle=state.screen==='title';state.screen='about';ui.render()}
       else if(action==='about-back'){state.screen=state.returnTitle?'title':'menu';ui.render()}
       else if(action==='intro-continue'||action==='intro-skip'){state.meta.intro_seen=true;services.save.save();beginStage(0)}
       else if(action==='select-stage'){state.selectedStageIndex=Number(button.dataset.stage);ui.render()}
+      else if(action==='start-stage'){const index=Number(button.dataset.stage);if(Number.isInteger(index)&&index>=0&&index<services.data.progression.stages_or_levels.length){if(index===0)beginStage(index);else{state.pendingStageIndex=index;state.screen='narrative';ui.render()}}}
       else if(action==='start-selected'){const index=Number(state.selectedStageIndex)||0;if(index>0){state.pendingStageIndex=index;state.screen='narrative';ui.render()}else beginStage(index)}
       else if(action==='begin-stage')beginStage(Number(state.pendingStageIndex)||0)
       else if(action==='next-stage'){const next=(state.stageIndex||0)+1;if(next>=services.data.progression.stages_or_levels.length){state.screen='postgame';ui.render()}else if(next>0){state.pendingStageIndex=next;state.screen='narrative';ui.render()}else beginStage(next)}
