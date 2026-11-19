@@ -1,6 +1,6 @@
 {
  "build_status": "READY",
- "generated_at": "2026-11-19T09:44:23.685Z",
+ "generated_at": "2026-11-19T13:11:21.312Z",
  "engine": "static SPA, Canvas 2D (no SSR / no server runtime)",
  "entry": "index.html",
  "data_source": [
@@ -78,7 +78,7 @@
   {
    "id": "game.build",
    "status": "PASS",
-   "detail": "маяков: 3"
+   "detail": "маяков: 4"
   },
   {
    "id": "game.wave",
@@ -103,7 +103,7 @@
   {
    "id": "game.combat",
    "status": "PASS",
-   "detail": "убито 4, гранул 136"
+   "detail": "убито 4, гранул 58"
   },
   {
    "id": "ui.no-nan",
