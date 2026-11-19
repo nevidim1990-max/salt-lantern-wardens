@@ -1,0 +1,175 @@
+{
+ "build_status": "READY",
+ "generated_at": "2026-11-19T09:44:23.685Z",
+ "engine": "static SPA, Canvas 2D (no SSR / no server runtime)",
+ "entry": "index.html",
+ "data_source": [
+  "theme.json",
+  "lore.json",
+  "entities.json",
+  "progression.json",
+  "asset_spec.json"
+ ],
+ "assets": {
+  "spec_entries": 109,
+  "critical_missing": 0,
+  "optional_missing": 0
+ },
+ "campaign": {
+  "levels_completed": 25,
+  "endless_unlocked": true
+ },
+ "checks": [
+  {
+   "id": "data.files",
+   "status": "PASS",
+   "detail": "25 макро / 125 микро"
+  },
+  {
+   "id": "data.assetFailures",
+   "status": "PASS",
+   "detail": "failures=0"
+  },
+  {
+   "id": "data.paths",
+   "status": "PASS",
+   "detail": "все маршруты найдены"
+  },
+  {
+   "id": "data.buildCells",
+   "status": "PASS",
+   "detail": "мин=8"
+  },
+  {
+   "id": "data.tiles",
+   "status": "PASS",
+   "detail": "все легенды резолвятся"
+  },
+  {
+   "id": "data.identity",
+   "status": "PASS",
+   "detail": "[160,195]"
+  },
+  {
+   "id": "flow.intro",
+   "status": "PASS",
+   "detail": "INTRO после «Играть»"
+  },
+  {
+   "id": "flow.tutorial",
+   "status": "PASS",
+   "detail": "Нажмите на светящуюся клетку, чтобы поставить маяк."
+  },
+  {
+   "id": "tutorial.place",
+   "status": "PASS",
+   "detail": "маяк поставлен"
+  },
+  {
+   "id": "tutorial.upgrade",
+   "status": "PASS",
+   "detail": "линза усилена"
+  },
+  {
+   "id": "flow.tutorial-done",
+   "status": "PASS",
+   "detail": "Первый сигнальный плес: Развитие"
+  },
+  {
+   "id": "game.build",
+   "status": "PASS",
+   "detail": "маяков: 3"
+  },
+  {
+   "id": "game.wave",
+   "status": "PASS",
+   "detail": "состояние wave, врагов: 1, волна 1"
+  },
+  {
+   "id": "state.pause-freeze",
+   "status": "PASS",
+   "detail": "симуляция остановлена"
+  },
+  {
+   "id": "state.pause-screen",
+   "status": "PASS",
+   "detail": "экран паузы"
+  },
+  {
+   "id": "state.resume",
+   "status": "PASS",
+   "detail": "продолжение"
+  },
+  {
+   "id": "game.combat",
+   "status": "PASS",
+   "detail": "убито 4, гранул 136"
+  },
+  {
+   "id": "ui.no-nan",
+   "status": "PASS",
+   "detail": "HUD без NaN/undefined"
+  },
+  {
+   "id": "state.choice",
+   "status": "PASS",
+   "detail": "choice"
+  },
+  {
+   "id": "state.choice-applied",
+   "status": "PASS",
+   "detail": "выбор применён"
+  },
+  {
+   "id": "state.victory",
+   "status": "PASS",
+   "detail": "victory, открыто 2"
+  },
+  {
+   "id": "save.written",
+   "status": "PASS",
+   "detail": "localStorage содержит сохранение"
+  },
+  {
+   "id": "save.reload",
+   "status": "PASS",
+   "detail": "unlocked=2, пройдено=1"
+  },
+  {
+   "id": "ui.level-menu",
+   "status": "PASS",
+   "detail": "карточек: 25"
+  },
+  {
+   "id": "ui.level-card",
+   "status": "PASS",
+   "detail": "карточка участка открыта"
+  },
+  {
+   "id": "ui.postgame-screen",
+   "status": "PASS",
+   "detail": "экран постгейма"
+  },
+  {
+   "id": "ui.responsive",
+   "status": "PASS",
+   "detail": "[{\"size\":\"desktop-1280x720\",\"overflow\":false,\"tiny\":0,\"buttons\":2},{\"size\":\"narrow-1024x768\",\"overflow\":false,\"tiny\":0,\"buttons\":2},{\"size\":\"mobile-portrait-390x844\",\"overflow\":false,\"tiny\":0,\"buttons\":2},{\"size\":\"mobile-landscape-844x390\",\"overflow\":false,\"tiny\":0,\"buttons\":2}]"
+  },
+  {
+   "id": "console.clean",
+   "status": "PASS",
+   "detail": "нет ошибок"
+  },
+  {
+   "id": "campaign.playthrough",
+   "status": "PASS",
+   "detail": "25/25 макро-уровней пройдено, постгейм: открыт"
+  }
+ ],
+ "failed": [],
+ "not_verified": [
+  "Звук проверен только по коду и маршрутам вызовов: в headless-браузере акустический результат не прослушивается.",
+  "Визуальная читаемость проверена по скриншотам 1280×720, 1024×768, 390×844, 844×390; все 125 микро-раскладок поштучно не просматривались.",
+  "Полный ручной проход кампании человеком не выполнялся; прогрессия проверена автоматическим прогоном 25 макро-уровней."
+ ]
+}

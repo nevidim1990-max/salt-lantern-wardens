@@ -1,0 +1,75 @@
+{
+ "audited_at": "2026-11-19T09:44:23.682Z",
+ "rows": [
+  {
+   "uid": "au_enemy_sprite_e_009",
+   "reference_id": "e_009",
+   "template": "flying",
+   "declared": "front",
+   "detected": "left",
+   "view": "top_down",
+   "action": "flipX when moving right",
+   "result": "aligned_to_travel"
+  },
+  {
+   "uid": "au_enemy_sprite_e_011",
+   "reference_id": "e_011",
+   "template": "flying",
+   "declared": "front",
+   "detected": "front",
+   "view": "top_down",
+   "action": "none",
+   "result": "ok"
+  },
+  {
+   "uid": "au_enemy_sprite_e_013",
+   "reference_id": "e_013",
+   "template": "humanoid",
+   "declared": "front",
+   "detected": "front",
+   "view": "top_down",
+   "action": "none",
+   "result": "ok"
+  },
+  {
+   "uid": "au_enemy_sprite_e_012",
+   "reference_id": "e_012",
+   "template": "humanoid",
+   "declared": "front",
+   "detected": "front",
+   "view": "top_down",
+   "action": "none",
+   "result": "ok"
+  },
+  {
+   "uid": "au_enemy_sprite_e_017",
+   "reference_id": "e_017",
+   "template": "humanoid",
+   "declared": "front",
+   "detected": "front",
+   "view": "top_down",
+   "action": "none",
+   "result": "ok"
+  },
+  {
+   "uid": "au_enemy_sprite_e_015",
+   "reference_id": "e_015",
+   "template": "humanoid",
+   "declared": "front",
+   "detected": "front",
+   "view": "top_down",
+   "action": "none",
+   "result": "ok"
+  },
+  {
+   "uid": "au_enemy_sprite_e_014",
+   "reference_id": "e_014",
+   "template": "humanoid",
+   "declared": "front",
+   "detected": "left",
+   "view": "top_down",
+   "action": "flipX when moving right",
+   "result": "aligned_to_travel"
+  }
+ ]
+}
