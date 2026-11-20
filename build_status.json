@@ -1,6 +1,6 @@
 {
  "build_status": "READY",
- "generated_at": "2026-11-19T13:45:28.853Z",
+ "generated_at": "2026-11-20T04:44:08.014Z",
  "engine": "static SPA, Canvas 2D (no SSR / no server runtime)",
  "entry": "index.html",
  "data_source": [
@@ -58,7 +58,7 @@
   {
    "id": "flow.tutorial",
    "status": "PASS",
-   "detail": "Нажмите на светящуюся клетку, чтобы поставить маяк."
+   "detail": "Шаг 1 из 3: тапните по светящейся клетке — там встанет маяк."
   },
   {
    "id": "tutorial.place",
@@ -153,7 +153,7 @@
   {
    "id": "ui.responsive",
    "status": "PASS",
-   "detail": "[{\"size\":\"desktop-1280x720\",\"overflow\":false,\"tiny\":0,\"buttons\":2},{\"size\":\"narrow-1024x768\",\"overflow\":false,\"tiny\":0,\"buttons\":2},{\"size\":\"mobile-portrait-390x844\",\"overflow\":false,\"tiny\":0,\"buttons\":2},{\"size\":\"mobile-landscape-844x390\",\"overflow\":false,\"tiny\":0,\"buttons\":2}]"
+   "detail": "[{\"size\":\"desktop-1280x720\",\"overflow\":false,\"tiny\":0,\"buttons\":3},{\"size\":\"narrow-1024x768\",\"overflow\":false,\"tiny\":0,\"buttons\":3},{\"size\":\"mobile-portrait-390x844\",\"overflow\":false,\"tiny\":0,\"buttons\":3},{\"size\":\"mobile-landscape-844x390\",\"overflow\":false,\"tiny\":0,\"buttons\":3}]"
   },
   {
    "id": "console.clean",
